@@ -1,0 +1,95 @@
+rules_version = '2';
+
+// B1-5(규칙↔쿼리↔인덱스 정합) + B3-1(권한 중앙화).
+// 고정 역할 없음 — 권한은 세션 관계로만 판단(createdByUserId). Custom Claims 미사용.
+// 서버 관리 컬렉션은 클라 직접 쓰기를 전면 차단(모든 전이는 콜러블=Admin SDK 경유).
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function isSelf(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+    function sessionData(sessionId) {
+      return get(/databases/$(database)/documents/gameSessions/$(sessionId)).data;
+    }
+    // B3-1: 권한 판단 단일 출처(lib/permissions.ts 와 의미 일치)
+    function isSessionOwner(sessionId) {
+      return isSignedIn()
+        && sessionData(sessionId).createdByUserId == request.auth.uid;
+    }
+    // 역할 없음 불변 강화: 어떤 문서에도 'role' 필드 추가 금지
+    function hasNoRoleField() {
+      return !request.resource.data.keys().hasAny(['role']);
+    }
+
+    match /users/{userId} {
+      allow read: if isSelf(userId);
+      allow create: if false; // onUserCreate(Admin SDK)가 생성
+      allow update: if isSelf(userId)
+        && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['displayName', 'phoneNumber', 'teamId', 'lastActiveAt'])
+        && hasNoRoleField();
+      allow delete: if false;
+
+      match /fcmTokens/{installationId} {
+        allow read, write: if isSelf(userId);
+      }
+    }
+
+    match /gameSessions/{sessionId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if false; // 콜러블 경유
+    }
+
+    match /participations/{participationId} {
+      allow read: if isSignedIn()
+        && (isSelf(resource.data.userId) || isSessionOwner(resource.data.gameSessionId));
+      allow create, update, delete: if false;
+    }
+
+    match /paymentSubmissions/{paymentSubmissionId} {
+      allow read: if isSignedIn()
+        && (isSelf(resource.data.userId) || isSessionOwner(resource.data.gameSessionId));
+      allow create, update, delete: if false;
+    }
+
+    match /refundRequests/{refundRequestId} {
+      allow read: if isSignedIn()
+        && (isSelf(resource.data.userId) || isSessionOwner(resource.data.gameSessionId));
+      allow create, update, delete: if false;
+    }
+
+    match /entryPasses/{entryPassId} {
+      allow read: if isSignedIn()
+        && (isSelf(resource.data.userId) || isSessionOwner(resource.data.gameSessionId));
+      allow create, update, delete: if false;
+    }
+
+    match /teams/{teamId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if false; // 시드/콘솔
+    }
+
+    // B3-3: Field 엔티티 유지(직접입력 병행해도 보존). 읽기 전용.
+    match /fields/{fieldId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if false;
+    }
+
+    // 콜러블이 없는 client-managed 컬렉션 — 규칙으로 직접 제어
+    match /gameRulePresets/{presetId} {
+      allow read: if isSignedIn()
+        && (resource.data.isPublic == true || isSelf(resource.data.ownerId));
+      allow create: if isSignedIn()
+        && request.resource.data.ownerId == request.auth.uid
+        && hasNoRoleField();
+      allow update, delete: if isSelf(resource.data.ownerId);
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

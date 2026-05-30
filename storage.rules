@@ -1,0 +1,22 @@
+rules_version = '2';
+
+// api-spec §3.3 기반. ⚠️ Storage 규칙은 Firestore를 조회할 수 없어 "세션 운영자 열람"을
+// 규칙으로 강제할 수 없다. read는 업로더 본인으로 한정하고, 운영자 열람은 후속
+// getReceiptUrl 콜러블(Admin SDK signed URL)로 처리한다. (api-spec §3.3 정정 필요)
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /paymentReceipts/{paymentSubmissionId}/{fileName} {
+      allow create: if request.auth != null
+        && request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/(jpeg|png|webp)')
+        && request.resource.metadata.uploaderId == request.auth.uid;
+      allow read: if request.auth != null
+        && resource.metadata.uploaderId == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
