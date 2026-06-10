@@ -59,6 +59,16 @@ export interface RequestParticipationOutput {
   status: "pendingApproval";
 }
 
+// 2.6a joinAsOperator (A7 — 운영자 자기 게임 참가, 자동확정)
+export interface JoinAsOperatorInput {
+  gameSessionId: string;
+}
+export interface JoinAsOperatorOutput {
+  success: true;
+  participationId: string;
+  status: "confirmed";
+}
+
 // 2.7 approveParticipation
 export interface ApproveParticipationInput {
   participationId: string;

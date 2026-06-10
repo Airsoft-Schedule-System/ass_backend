@@ -2,14 +2,20 @@
 export { onUserCreate } from "./triggers/onUserCreate";
 export {
   createGameSession,
+  updateGameSession,
+  cancelGameSession,
   requestParticipation,
+  joinAsOperator,
   approveParticipation,
   rejectParticipation,
+  cancelParticipation,
+  submitPayment,
   approvePayment,
-  rejectPayment
+  rejectPayment,
+  requestRefund
 } from "./functions";
+export { scheduledStatusTransition } from "./functions/scheduled/statusTransition";
 
-// TODO(후속 — 선행 결정/인프라 의존, 본 GREEN 범위 외):
-//  updateGameSession, cancelGameSession(tx), cancelParticipation(tx), submitPayment,
-//  requestRefund, processRefund, getEntryPassToken, scanEntryPass(tx),
-//  onParticipationConfirmed(EntryPass 발급 트리거, A5), scheduledStatusTransition, scheduledReminder(A8)
+// TODO(후속 — 선행 결정/인프라 의존, Wave 1 범위 외):
+//  processRefund(A3 비활성), getEntryPassToken, scanEntryPass(tx),
+//  markAttendance, onParticipationConfirmed(EntryPass 발급 트리거, A5), scheduledReminder(A8)

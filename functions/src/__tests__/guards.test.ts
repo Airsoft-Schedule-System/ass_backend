@@ -57,5 +57,35 @@ describe("guards", () => {
         assertSessionStatusAllows("approvePayment", { status: "cancelled" })
       ).toThrow(HttpsError);
     });
+
+    it("Wave 1 신규 operation 화이트리스트", () => {
+      expect(() =>
+        assertSessionStatusAllows("joinAsOperator", { status: "recruiting" })
+      ).not.toThrow();
+      expect(() =>
+        assertSessionStatusAllows("joinAsOperator", { status: "closed" })
+      ).toThrow(HttpsError);
+
+      expect(() =>
+        assertSessionStatusAllows("submitPayment", { status: "closed" })
+      ).not.toThrow();
+      expect(() =>
+        assertSessionStatusAllows("submitPayment", { status: "inProgress" })
+      ).toThrow(HttpsError);
+
+      expect(() =>
+        assertSessionStatusAllows("updateGameSession", { status: "inProgress" })
+      ).not.toThrow();
+      expect(() =>
+        assertSessionStatusAllows("updateGameSession", { status: "completed" })
+      ).toThrow(HttpsError);
+
+      expect(() =>
+        assertSessionStatusAllows("cancelGameSession", { status: "closed" })
+      ).not.toThrow();
+      expect(() =>
+        assertSessionStatusAllows("cancelGameSession", { status: "cancelled" })
+      ).toThrow(HttpsError);
+    });
   });
 });
