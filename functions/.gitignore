@@ -1,5 +1,6 @@
 node_modules/
-lib/
+# tsc 빌드 산출물(functions/lib/)만 무시 — 앵커 없으면 src/lib까지 무시되는 사고 발생(2026-06-11 교정)
+/lib/
 coverage/
 
 .env
