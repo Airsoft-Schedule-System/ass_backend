@@ -87,5 +87,25 @@ describe("guards", () => {
         assertSessionStatusAllows("cancelGameSession", { status: "cancelled" })
       ).toThrow(HttpsError);
     });
+
+    it("Wave 2 출석 operation은 터미널 세션 상태만 차단한다", () => {
+      for (const operation of ["scanEntryPass", "markAttendance"] as const) {
+        expect(() =>
+          assertSessionStatusAllows(operation, { status: "recruiting" })
+        ).not.toThrow();
+        expect(() =>
+          assertSessionStatusAllows(operation, { status: "closed" })
+        ).not.toThrow();
+        expect(() =>
+          assertSessionStatusAllows(operation, { status: "inProgress" })
+        ).not.toThrow();
+        expect(() =>
+          assertSessionStatusAllows(operation, { status: "completed" })
+        ).toThrow(HttpsError);
+        expect(() =>
+          assertSessionStatusAllows(operation, { status: "cancelled" })
+        ).toThrow(HttpsError);
+      }
+    });
   });
 });

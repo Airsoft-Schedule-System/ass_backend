@@ -173,3 +173,11 @@ export interface ScanEntryPassOutput {
   userId: string;
   displayName: string;
 }
+
+// 2.17a markAttendance
+export interface MarkAttendanceInput {
+  participationId: string;
+}
+export interface MarkAttendanceOutput {
+  success: true;
+}

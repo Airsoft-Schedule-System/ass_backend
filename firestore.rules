@@ -61,6 +61,14 @@ service cloud.firestore {
       allow create, update, delete: if false;
     }
 
+    match /notifications/{notificationId} {
+      allow read: if isSignedIn() && isSelf(resource.data.userId);
+      allow create, delete: if false; // 서버(Cloud Functions)만 생성
+      allow update: if isSignedIn() && isSelf(resource.data.userId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRead'])
+        && request.resource.data.isRead is bool;
+    }
+
     match /entryPasses/{entryPassId} {
       allow read: if isSignedIn()
         && (isSelf(resource.data.userId) || isSessionOwner(resource.data.gameSessionId));

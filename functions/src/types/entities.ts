@@ -1,4 +1,4 @@
-// ERD-v2 §5 엔티티 명세 전사 (10개 엔티티)
+// ERD-v2 §5 엔티티 명세 전사 (11개 엔티티)
 import type { BankAccount, GeoPoint, Timestamp, UserId } from "./common";
 import type {
   EntryPassStatus,
@@ -77,6 +77,7 @@ export interface GameSession {
   customRules: Record<string, unknown> | null;
   cancelDeadline: Timestamp;
   status: GameSessionStatus;
+  reminderSent?: boolean;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
@@ -139,4 +140,19 @@ export interface EntryPass {
   expiresAt: Timestamp;
   usedAt: Timestamp | null;
   scannedBy: UserId | null;
+}
+
+// §5.11 — 인앱 알림함 데이터 소스
+export interface Notification {
+  id?: string;
+  userId: UserId;
+  type: string;
+  title: string;
+  body: string;
+  actionUrl: string;
+  data: Record<string, string> | null;
+  gameSessionId: string | null;
+  participationId: string | null;
+  isRead: boolean;
+  createdAt: Timestamp;
 }

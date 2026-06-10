@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   CANCELLABLE_PARTICIPATION_STATUS,
+  isInReminderWindow,
   isRefundEligible,
   nextSessionStatus
 } from "../lib/policy";
@@ -77,6 +78,26 @@ describe("policy", () => {
       expect(
         nextSessionStatus({ ...base, status: SESSION_STATUS.RECRUITING }, 1_000)
       ).toBeNull();
+    });
+  });
+
+  describe("isInReminderWindow", () => {
+    const nowMs = 1_000_000;
+    const dayMs = 24 * 60 * 60 * 1000;
+    const halfHourMs = 30 * 60 * 1000;
+
+    it("정확히 24시간 전이면 true", () => {
+      expect(isInReminderWindow(nowMs + dayMs, nowMs)).toBe(true);
+    });
+
+    it("23.5시간과 24.5시간 경계를 포함한다", () => {
+      expect(isInReminderWindow(nowMs + dayMs - halfHourMs, nowMs)).toBe(true);
+      expect(isInReminderWindow(nowMs + dayMs + halfHourMs, nowMs)).toBe(true);
+    });
+
+    it("23시간과 25시간은 false", () => {
+      expect(isInReminderWindow(nowMs + 23 * 60 * 60 * 1000, nowMs)).toBe(false);
+      expect(isInReminderWindow(nowMs + 25 * 60 * 60 * 1000, nowMs)).toBe(false);
     });
   });
 
