@@ -25,3 +25,4 @@ serviceAccount*.json
 Thumbs.db
 .idea/
 .vscode/
+.supabase/

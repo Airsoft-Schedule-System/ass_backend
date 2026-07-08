@@ -1,0 +1,10 @@
+create index gs_status_starts on public.game_sessions (status, starts_at);
+create index gs_owner_starts on public.game_sessions (created_by_user_id, starts_at);
+create index p_user on public.participations (user_id, created_at desc);
+create index p_session_status on public.participations (game_session_id, status, created_at);
+create index ps_session_queue on public.payment_submissions (game_session_id, status, submitted_at);
+create index rr_session_queue on public.refund_requests (game_session_id, status, requested_at);
+create index ep_user_session on public.entry_passes (user_id, game_session_id, status);
+create index grp_owner on public.game_rule_presets (owner_id, updated_at desc);
+create index n_user_created on public.notifications (user_id, created_at desc);
+create index n_user_unread on public.notifications (user_id, is_read, created_at desc);
