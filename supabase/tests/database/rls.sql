@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set search_path = public, extensions;
 
-select no_plan();
+select plan(102);
 
 create schema if not exists tests;
 
@@ -273,6 +273,212 @@ select ok(
   'one_participation_per_user rejects duplicate user per session'
 );
 
+select throws_ok(
+  $$
+    insert into public.game_sessions (
+      id,
+      title,
+      created_by_user_id,
+      starts_at,
+      capacity,
+      confirmed_count,
+      game_fee,
+      bank_name,
+      bank_account_number,
+      bank_account_holder,
+      preset_id,
+      cancel_deadline
+    ) values (
+      '40000000-0000-0000-0000-000000000091',
+      'No field',
+      '00000000-0000-0000-0000-000000000001',
+      now() + interval '1 day',
+      20,
+      0,
+      0,
+      'Bank',
+      '123',
+      'Owner',
+      '30000000-0000-0000-0000-000000000001',
+      now() + interval '12 hours'
+    )
+  $$,
+  '23514',
+  'new row for relation "game_sessions" violates check constraint "field_xor"',
+  'field_xor rejects both field_id and field_name null'
+);
+
+select throws_ok(
+  $$
+    insert into public.game_sessions (
+      id,
+      title,
+      created_by_user_id,
+      field_id,
+      field_name,
+      starts_at,
+      capacity,
+      confirmed_count,
+      game_fee,
+      bank_name,
+      bank_account_number,
+      bank_account_holder,
+      preset_id,
+      cancel_deadline
+    ) values (
+      '40000000-0000-0000-0000-000000000092',
+      'Two fields',
+      '00000000-0000-0000-0000-000000000001',
+      '20000000-0000-0000-0000-000000000001',
+      'Field A',
+      now() + interval '1 day',
+      20,
+      0,
+      0,
+      'Bank',
+      '123',
+      'Owner',
+      '30000000-0000-0000-0000-000000000001',
+      now() + interval '12 hours'
+    )
+  $$,
+  '23514',
+  'new row for relation "game_sessions" violates check constraint "field_xor"',
+  'field_xor rejects both field_id and field_name set'
+);
+
+select throws_ok(
+  $$
+    insert into public.game_sessions (
+      id,
+      title,
+      created_by_user_id,
+      field_id,
+      starts_at,
+      capacity,
+      confirmed_count,
+      game_fee,
+      bank_name,
+      bank_account_number,
+      bank_account_holder,
+      cancel_deadline
+    ) values (
+      '40000000-0000-0000-0000-000000000093',
+      'No rules',
+      '00000000-0000-0000-0000-000000000001',
+      '20000000-0000-0000-0000-000000000001',
+      now() + interval '1 day',
+      20,
+      0,
+      0,
+      'Bank',
+      '123',
+      'Owner',
+      now() + interval '12 hours'
+    )
+  $$,
+  '23514',
+  'new row for relation "game_sessions" violates check constraint "rules_xor"',
+  'rules_xor rejects both preset_id and custom_rules null'
+);
+
+select throws_ok(
+  $$
+    insert into public.game_sessions (
+      id,
+      title,
+      created_by_user_id,
+      field_id,
+      starts_at,
+      capacity,
+      confirmed_count,
+      game_fee,
+      bank_name,
+      bank_account_number,
+      bank_account_holder,
+      preset_id,
+      custom_rules,
+      cancel_deadline
+    ) values (
+      '40000000-0000-0000-0000-000000000094',
+      'Two rules',
+      '00000000-0000-0000-0000-000000000001',
+      '20000000-0000-0000-0000-000000000001',
+      now() + interval '1 day',
+      20,
+      0,
+      0,
+      'Bank',
+      '123',
+      'Owner',
+      '30000000-0000-0000-0000-000000000001',
+      '{}',
+      now() + interval '12 hours'
+    )
+  $$,
+  '23514',
+  'new row for relation "game_sessions" violates check constraint "rules_xor"',
+  'rules_xor rejects both preset_id and custom_rules set'
+);
+
+select throws_ok(
+  $$
+    insert into public.refund_requests (
+      id,
+      participation_id,
+      game_session_id,
+      user_id,
+      bank_name,
+      account_number_encrypted,
+      account_holder
+    ) values (
+      '70000000-0000-0000-0000-000000000099',
+      '50000000-0000-0000-0000-000000000001',
+      '40000000-0000-0000-0000-000000000001',
+      '00000000-0000-0000-0000-000000000002',
+      'Bank',
+      'encrypted-duplicate',
+      'Self'
+    )
+  $$,
+  '23505',
+  'duplicate key value violates unique constraint "refund_requests_participation_id_key"',
+  'refund_requests rejects a second request for one participation'
+);
+
+select throws_ok(
+  $$
+    insert into public.entry_passes (
+      id,
+      participation_id,
+      game_session_id,
+      user_id,
+      qr_token_hash,
+      expires_at
+    ) values (
+      '80000000-0000-0000-0000-000000000099',
+      '50000000-0000-0000-0000-000000000001',
+      '40000000-0000-0000-0000-000000000001',
+      '00000000-0000-0000-0000-000000000002',
+      'hash-duplicate',
+      now() + interval '8 days'
+    )
+  $$,
+  '23505',
+  'duplicate key value violates unique constraint "one_active_pass_per_participation"',
+  'entry_passes rejects a second active pass for one participation'
+);
+
+insert into storage.objects (id, bucket_id, name, owner, owner_id, metadata)
+values (
+  'a0000000-0000-0000-0000-000000000001',
+  'receipts',
+  'receipts/50000000-0000-0000-0000-000000000001/f.jpg',
+  '00000000-0000-0000-0000-000000000002',
+  '00000000-0000-0000-0000-000000000002',
+  '{"mimetype":"image/jpeg"}'
+);
+
 reset role;
 set local role anon;
 set local "request.jwt.claim.sub" = '';
@@ -316,6 +522,7 @@ select is((select count(*) from public.notifications where id = '90000000-0000-0
 select is((select count(*) from public.notifications where id = '90000000-0000-0000-0000-000000000002'), 0::bigint, 'self cannot select other notification');
 select is((select count(*) from public.fcm_tokens where installation_id = 'self-device'), 1::bigint, 'self can select own fcm token');
 select is((select count(*) from public.fcm_tokens where installation_id = 'other-device'), 0::bigint, 'self cannot select other fcm token');
+select is((select count(*) from storage.objects where bucket_id = 'receipts' and name = 'receipts/50000000-0000-0000-0000-000000000001/f.jpg'), 1::bigint, 'receipt uploader can select own receipt object');
 
 select ok(tests.try_exec($$update public.users set display_name = 'Self Updated', phone_number = '010-0000-0000', team_id = '10000000-0000-0000-0000-000000000001', last_active_at = now() where id = '00000000-0000-0000-0000-000000000002'$$), 'self can update allowed user profile columns');
 select ok(not tests.try_exec($$update public.users set email = 'changed@example.test' where id = '00000000-0000-0000-0000-000000000002'$$), 'self cannot update disallowed user profile columns');
@@ -326,16 +533,29 @@ select ok(tests.try_exec($$update public.game_rule_presets set name = 'Self pres
 select ok(tests.try_exec($$delete from public.game_rule_presets where id = '30000000-0000-0000-0000-000000000099'$$), 'preset owner can delete own preset');
 select ok(not tests.try_exec($$insert into public.game_rule_presets (name, owner_id) values ('Forged preset', '00000000-0000-0000-0000-000000000003')$$), 'preset insert cannot forge owner_id');
 select ok(not tests.try_exec($$update public.game_sessions set title = 'Blocked' where id = '40000000-0000-0000-0000-000000000001'$$), 'authenticated cannot directly write game_sessions');
+select ok(not tests.try_exec($$insert into public.game_sessions (title, created_by_user_id, field_id, starts_at, capacity, confirmed_count, game_fee, bank_name, bank_account_number, bank_account_holder, preset_id, cancel_deadline) values ('Blocked direct session', '00000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000001', now() + interval '1 day', 20, 0, 0, 'Bank', '123', 'Self', '30000000-0000-0000-0000-000000000001', now() + interval '12 hours')$$), 'authenticated cannot directly insert game_sessions');
+select ok(not tests.try_exec($$delete from public.game_sessions where id = '40000000-0000-0000-0000-000000000001'$$), 'authenticated cannot directly delete game_sessions');
 select ok(not tests.try_exec($$update public.participations set status = 'cancelled' where id = '50000000-0000-0000-0000-000000000001'$$), 'self cannot directly write participations');
+select ok(not tests.try_exec($$insert into public.participations (game_session_id, user_id) values ('40000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000002')$$), 'authenticated cannot directly insert participations');
+select ok(not tests.try_exec($$delete from public.participations where id = '50000000-0000-0000-0000-000000000001'$$), 'authenticated cannot directly delete participations');
 select ok(not tests.try_exec($$update public.payment_submissions set status = 'approved' where id = '60000000-0000-0000-0000-000000000001'$$), 'self cannot directly write payment_submissions');
+select ok(not tests.try_exec($$insert into public.payment_submissions (participation_id, game_session_id, user_id, sender_name, amount, receipt_path) values ('50000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000002', 'Self', 30000, 'receipts/50000000-0000-0000-0000-000000000001/direct.jpg')$$), 'authenticated cannot directly insert payment_submissions');
+select ok(not tests.try_exec($$delete from public.payment_submissions where id = '60000000-0000-0000-0000-000000000001'$$), 'authenticated cannot directly delete payment_submissions');
 select ok(not tests.try_exec($$update public.refund_requests set status = 'completed' where id = '70000000-0000-0000-0000-000000000001'$$), 'self cannot directly write refund_requests');
+select ok(not tests.try_exec($$insert into public.refund_requests (participation_id, game_session_id, user_id, bank_name, account_number_encrypted, account_holder) values ('50000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000002', 'Bank', 'encrypted-direct', 'Self')$$), 'authenticated cannot directly insert refund_requests');
+select ok(not tests.try_exec($$delete from public.refund_requests where id = '70000000-0000-0000-0000-000000000001'$$), 'authenticated cannot directly delete refund_requests');
 select ok(not tests.try_exec($$update public.entry_passes set status = 'used' where id = '80000000-0000-0000-0000-000000000001'$$), 'self cannot directly write entry_passes');
+select ok(not tests.try_exec($$insert into public.entry_passes (participation_id, game_session_id, user_id, qr_token_hash, expires_at) values ('50000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000002', 'hash-direct', now() + interval '1 day')$$), 'authenticated cannot directly insert entry_passes');
+select ok(not tests.try_exec($$delete from public.entry_passes where id = '80000000-0000-0000-0000-000000000001'$$), 'authenticated cannot directly delete entry_passes');
 select ok(tests.try_exec($$update public.notifications set is_read = true where id = '90000000-0000-0000-0000-000000000001'$$), 'self can update notification is_read');
 select ok(not tests.try_exec($$update public.notifications set title = 'Blocked' where id = '90000000-0000-0000-0000-000000000001'$$), 'self cannot update notification columns except is_read');
 select ok(tests.try_exec($$insert into public.fcm_tokens (user_id, installation_id, token, platform) values ('00000000-0000-0000-0000-000000000002', 'self-temp', 'token', 'web')$$), 'self can insert own fcm token');
 select ok(tests.try_exec($$update public.fcm_tokens set token = 'token-updated' where user_id = '00000000-0000-0000-0000-000000000002' and installation_id = 'self-temp'$$), 'self can update own fcm token');
 select ok(tests.try_exec($$delete from public.fcm_tokens where user_id = '00000000-0000-0000-0000-000000000002' and installation_id = 'self-temp'$$), 'self can delete own fcm token');
 select ok(not tests.try_exec($$insert into public.fcm_tokens (user_id, installation_id, token) values ('00000000-0000-0000-0000-000000000003', 'forged-temp', 'token')$$), 'self cannot insert fcm token for another user');
+select ok(tests.try_exec($$insert into storage.objects (id, bucket_id, name, owner, owner_id, metadata) values ('a0000000-0000-0000-0000-000000000002', 'receipts', 'receipts/50000000-0000-0000-0000-000000000001/self-upload.jpg', '00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000002', '{"mimetype":"image/jpeg"}')$$), 'receipt uploader can insert object for own participation path');
+select ok(not tests.try_exec($$insert into storage.objects (id, bucket_id, name, owner, owner_id, metadata) values ('a0000000-0000-0000-0000-000000000003', 'receipts', 'receipts/50000000-0000-0000-0000-000000000002/blocked.jpg', '00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000002', '{"mimetype":"image/jpeg"}')$$), 'receipt uploader cannot insert object for another participation path');
+select ok(not tests.try_exec($$insert into storage.objects (id, bucket_id, name, owner, owner_id, metadata) values ('a0000000-0000-0000-0000-000000000004', 'receipts', 'receipts/not-a-uuid/bad.jpg', '00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000002', '{"mimetype":"image/jpeg"}')$$), 'receipt uploader cannot insert malformed participation path');
 
 reset role;
 set local role authenticated;
@@ -349,6 +569,7 @@ select is((select count(*) from public.refund_requests where id = '70000000-0000
 select is((select count(*) from public.entry_passes where id = '80000000-0000-0000-0000-000000000001'), 0::bigint, 'other user cannot select self entry pass');
 select is((select count(*) from public.notifications where id = '90000000-0000-0000-0000-000000000001'), 0::bigint, 'other user cannot select self notification');
 select is((select count(*) from public.fcm_tokens where installation_id = 'self-device'), 0::bigint, 'other user cannot select self fcm token');
+select is((select count(*) from storage.objects where bucket_id = 'receipts' and name = 'receipts/50000000-0000-0000-0000-000000000001/f.jpg'), 0::bigint, 'unrelated user cannot select receipt object');
 select is(tests.exec_row_count($$update public.users set display_name = 'Other Changed Self' where id = '00000000-0000-0000-0000-000000000002'$$), 0, 'other user cannot update self profile');
 select is(tests.exec_row_count($$update public.game_rule_presets set name = 'Blocked' where id = '30000000-0000-0000-0000-000000000002'$$), 0, 'other user cannot update another owner preset');
 select is(tests.exec_row_count($$update public.notifications set is_read = true where id = '90000000-0000-0000-0000-000000000001'$$), 0, 'other user cannot update self notification');
@@ -370,6 +591,7 @@ select is((select count(*) from public.refund_requests where id = '70000000-0000
 select is((select count(*) from public.entry_passes where id = '80000000-0000-0000-0000-000000000001'), 1::bigint, 'session owner can select own session entry pass');
 select is((select count(*) from public.entry_passes where id = '80000000-0000-0000-0000-000000000002'), 0::bigint, 'session owner cannot select other session entry pass');
 select is((select count(*) from public.notifications where id = '90000000-0000-0000-0000-000000000001'), 0::bigint, 'session owner cannot select applicant notification');
+select is((select count(*) from storage.objects where bucket_id = 'receipts' and name = 'receipts/50000000-0000-0000-0000-000000000001/f.jpg'), 1::bigint, 'session owner can select own session receipt object');
 select is(tests.exec_row_count($$update public.users set display_name = 'Owner Changed Applicant' where id = '00000000-0000-0000-0000-000000000002'$$), 0, 'session owner cannot update applicant profile');
 select ok(not tests.try_exec($$update public.participations set status = 'attended' where id = '50000000-0000-0000-0000-000000000001'$$), 'session owner cannot directly write participations');
 select ok(not tests.try_exec($$update public.payment_submissions set status = 'approved' where id = '60000000-0000-0000-0000-000000000001'$$), 'session owner cannot directly write payment_submissions');

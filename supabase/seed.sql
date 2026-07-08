@@ -1,0 +1,1 @@
+-- Intentionally empty. Database tests seed their own scenario data.

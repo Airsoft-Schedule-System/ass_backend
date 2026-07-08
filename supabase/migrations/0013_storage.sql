@@ -14,10 +14,11 @@ for insert
 to authenticated
 with check (
   bucket_id = 'receipts'
+  and (storage.foldername(name))[1] = 'receipts'
   and exists (
     select 1
     from public.participations p
-    where p.id = ((storage.foldername(name))[1])::uuid
+    where p.id = ((storage.foldername(name))[2])::uuid
       and p.user_id = auth.uid()
   )
 );
@@ -28,10 +29,11 @@ for select
 to authenticated
 using (
   bucket_id = 'receipts'
+  and (storage.foldername(name))[1] = 'receipts'
   and exists (
     select 1
     from public.participations p
-    where p.id = ((storage.foldername(name))[1])::uuid
+    where p.id = ((storage.foldername(name))[2])::uuid
       and (
         p.user_id = auth.uid()
         or public.is_session_owner(p.game_session_id)
