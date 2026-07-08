@@ -117,6 +117,15 @@ declare
 begin
   v_uid := public.current_uid();
 
+  perform 1
+  from public.game_sessions
+  where id = (
+    select game_session_id
+    from public.participations
+    where id = p_participation_id
+  )
+  for update;
+
   select *
     into v_participation
   from public.participations
@@ -199,6 +208,15 @@ declare
 begin
   v_uid := public.current_uid();
 
+  perform 1
+  from public.game_sessions
+  where id = (
+    select game_session_id
+    from public.participations
+    where id = p_participation_id
+  )
+  for update;
+
   select *
     into v_participation
   from public.participations
@@ -271,6 +289,15 @@ declare
 begin
   v_uid := public.current_uid();
 
+  perform 1
+  from public.game_sessions
+  where id = (
+    select game_session_id
+    from public.participations
+    where id = p_participation_id
+  )
+  for update;
+
   select *
     into v_participation
   from public.participations
@@ -303,7 +330,13 @@ begin
   end if;
 
   v_refund_eligible := v_participation.status = 'confirmed'
-    and now() < v_session.cancel_deadline;
+    and now() < v_session.cancel_deadline
+    and exists (
+      select 1
+      from public.payment_submissions ps
+      where ps.participation_id = p_participation_id
+        and ps.status = 'approved'
+    );
 
   update public.participations
   set status = 'cancelled'
@@ -343,6 +376,15 @@ declare
   v_now timestamptz := now();
 begin
   v_uid := public.current_uid();
+
+  perform 1
+  from public.game_sessions
+  where id = (
+    select game_session_id
+    from public.participations
+    where id = p_participation_id
+  )
+  for update;
 
   select *
     into v_participation

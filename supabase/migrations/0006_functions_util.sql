@@ -29,6 +29,32 @@ begin
 end;
 $$;
 
+create or replace function public.try_uuid(p text)
+returns uuid
+language plpgsql
+immutable
+as $$
+begin
+  return p::uuid;
+exception
+  when others then
+    perform public.app_error('invalid-argument', 'invalid uuid format');
+end;
+$$;
+
+create or replace function public.try_timestamptz(p text)
+returns timestamptz
+language plpgsql
+immutable
+as $$
+begin
+  return p::timestamptz;
+exception
+  when others then
+    perform public.app_error('invalid-argument', 'invalid timestamp format');
+end;
+$$;
+
 create or replace function public.assert_profile_complete(p_uid uuid)
 returns void
 language plpgsql
@@ -177,6 +203,8 @@ $$;
 
 revoke execute on function public.app_error(text, text) from public, anon, authenticated;
 revoke execute on function public.current_uid() from public, anon, authenticated;
+revoke execute on function public.try_uuid(text) from public, anon, authenticated;
+revoke execute on function public.try_timestamptz(text) from public, anon, authenticated;
 revoke execute on function public.assert_profile_complete(uuid) from public, anon, authenticated;
 revoke execute on function public.assert_session_owner(public.game_sessions, uuid) from public, anon, authenticated;
 revoke execute on function public.assert_session_status(text, public.game_session_status) from public, anon, authenticated;

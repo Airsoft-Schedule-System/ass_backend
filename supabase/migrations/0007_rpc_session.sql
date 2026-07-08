@@ -39,13 +39,13 @@ begin
   end if;
 
   v_has_field_id := nullif(p_input->>'fieldId', '') is not null;
-  v_has_field_name := nullif(p_input->>'fieldName', '') is not null;
+  v_has_field_name := nullif(btrim(p_input->>'fieldName'), '') is not null;
   if v_has_field_id = v_has_field_name then
     perform public.app_error('invalid-argument', 'fieldId 또는 fieldName 중 정확히 하나를 제공해야 합니다');
   end if;
 
   if v_has_field_id then
-    v_field_id := (p_input->>'fieldId')::uuid;
+    v_field_id := public.try_uuid(p_input->>'fieldId');
   else
     v_field_name := nullif(btrim(p_input->>'fieldName'), '');
   end if;
@@ -68,13 +68,13 @@ begin
   if nullif(p_input->>'startsAt', '') is null then
     perform public.app_error('invalid-argument', 'startsAt는 필수입니다');
   end if;
-  v_starts_at := (p_input->>'startsAt')::timestamptz;
+  v_starts_at := public.try_timestamptz(p_input->>'startsAt');
   if v_starts_at <= now() then
     perform public.app_error('invalid-argument', 'startsAt은 미래 시각이어야 합니다');
   end if;
 
   if nullif(p_input->>'endsAt', '') is not null then
-    v_ends_at := (p_input->>'endsAt')::timestamptz;
+    v_ends_at := public.try_timestamptz(p_input->>'endsAt');
     if v_ends_at <= v_starts_at then
       perform public.app_error('invalid-argument', 'endsAt은 startsAt 이후여야 합니다');
     end if;
@@ -105,7 +105,7 @@ begin
   end if;
 
   if v_has_preset then
-    v_preset_id := (p_input->>'presetId')::uuid;
+    v_preset_id := public.try_uuid(p_input->>'presetId');
     if not exists (
       select 1
       from public.game_rule_presets gp
@@ -119,13 +119,19 @@ begin
   end if;
 
   if nullif(p_input->>'hostTeamId', '') is not null then
-    v_host_team_id := (p_input->>'hostTeamId')::uuid;
+    v_host_team_id := public.try_uuid(p_input->>'hostTeamId');
   end if;
 
-  v_cancel_deadline := coalesce(
-    nullif(p_input->>'cancelDeadline', '')::timestamptz,
-    v_starts_at - interval '48 hours'
-  );
+  if nullif(p_input->>'cancelDeadline', '') is not null then
+    v_cancel_deadline := public.try_timestamptz(p_input->>'cancelDeadline');
+    if v_cancel_deadline < v_starts_at - interval '7 days'
+      or v_cancel_deadline > v_starts_at - interval '24 hours'
+    then
+      perform public.app_error('invalid-argument', 'cancelDeadline은 시작 7일 전부터 24시간 전 사이여야 합니다');
+    end if;
+  else
+    v_cancel_deadline := v_starts_at - interval '48 hours';
+  end if;
 
   insert into public.game_sessions (
     title,
@@ -281,7 +287,7 @@ begin
     if nullif(p_updates->>'cancelDeadline', '') is null then
       perform public.app_error('invalid-argument', 'updates.cancelDeadline는 유효한 시각이어야 합니다');
     end if;
-    v_cancel_deadline := (p_updates->>'cancelDeadline')::timestamptz;
+    v_cancel_deadline := public.try_timestamptz(p_updates->>'cancelDeadline');
     if v_cancel_deadline < v_session.starts_at - interval '7 days'
       or v_cancel_deadline > v_session.starts_at - interval '24 hours'
     then
@@ -293,7 +299,7 @@ begin
     if nullif(p_updates->>'endsAt', '') is null then
       perform public.app_error('invalid-argument', 'updates.endsAt는 유효한 시각이어야 합니다');
     end if;
-    v_ends_at := (p_updates->>'endsAt')::timestamptz;
+    v_ends_at := public.try_timestamptz(p_updates->>'endsAt');
     if v_ends_at <= v_session.starts_at then
       perform public.app_error('invalid-argument', 'endsAt은 startsAt 이후여야 합니다');
     end if;
@@ -368,7 +374,8 @@ begin
   perform public.assert_session_status('cancel_game_session', v_session.status);
 
   update public.game_sessions
-  set status = 'cancelled'
+  set status = 'cancelled',
+      confirmed_count = 0
   where id = p_session_id;
 
   for v_participation in

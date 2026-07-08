@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set search_path = public, extensions;
 
-select plan(48);
+select plan(53);
 
 create schema if not exists tests;
 
@@ -96,7 +96,9 @@ insert into public.game_sessions (
   ('41000000-0000-0000-0000-000000000015', 'QR Reuse Session', '00000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', now() + interval '7 days', now() + interval '7 days 6 hours', 10, 1, 30000, 'Bank', '123-456', 'Owner', '30000000-0000-0000-0000-000000000001', now() + interval '5 days', 'recruiting'),
   ('41000000-0000-0000-0000-000000000016', 'QR Expired Session', '00000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', now() - interval '2 days', now() - interval '1 day', 10, 1, 30000, 'Bank', '123-456', 'Owner', '30000000-0000-0000-0000-000000000001', now() - interval '3 days', 'inProgress'),
   ('41000000-0000-0000-0000-000000000017', 'Operator Session', '00000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', now() + interval '7 days', now() + interval '7 days 6 hours', 1, 0, 30000, 'Bank', '123-456', 'Owner', '30000000-0000-0000-0000-000000000001', now() + interval '5 days', 'recruiting'),
-  ('41000000-0000-0000-0000-000000000018', 'Submit Session', '00000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', now() + interval '7 days', now() + interval '7 days 6 hours', 10, 0, 30000, 'Bank', '123-456', 'Owner', '30000000-0000-0000-0000-000000000001', now() + interval '5 days', 'recruiting');
+  ('41000000-0000-0000-0000-000000000018', 'Submit Session', '00000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', now() + interval '7 days', now() + interval '7 days 6 hours', 10, 0, 30000, 'Bank', '123-456', 'Owner', '30000000-0000-0000-0000-000000000001', now() + interval '5 days', 'recruiting'),
+  ('41000000-0000-0000-0000-000000000019', 'Operator Refund Session', '00000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', now() + interval '7 days', now() + interval '7 days 6 hours', 2, 0, 30000, 'Bank', '123-456', 'Owner', '30000000-0000-0000-0000-000000000001', now() + interval '5 days', 'recruiting'),
+  ('41000000-0000-0000-0000-000000000020', 'Cancel Count Session', '00000000-0000-0000-0000-000000000004', '20000000-0000-0000-0000-000000000001', now() + interval '7 days', now() + interval '7 days 6 hours', 5, 2, 30000, 'Bank', '123-456', 'Other Owner', '30000000-0000-0000-0000-000000000001', now() + interval '5 days', 'closed');
 
 insert into public.participations (id, game_session_id, user_id, status)
 values
@@ -111,7 +113,9 @@ values
   ('51000000-0000-0000-0000-000000000009', '41000000-0000-0000-0000-000000000015', '00000000-0000-0000-0000-000000000002', 'confirmed'),
   ('51000000-0000-0000-0000-000000000010', '41000000-0000-0000-0000-000000000016', '00000000-0000-0000-0000-000000000002', 'confirmed'),
   ('51000000-0000-0000-0000-000000000011', '41000000-0000-0000-0000-000000000018', '00000000-0000-0000-0000-000000000002', 'awaitingPayment'),
-  ('51000000-0000-0000-0000-000000000012', '41000000-0000-0000-0000-000000000018', '00000000-0000-0000-0000-000000000003', 'paymentReview');
+  ('51000000-0000-0000-0000-000000000012', '41000000-0000-0000-0000-000000000018', '00000000-0000-0000-0000-000000000003', 'paymentReview'),
+  ('51000000-0000-0000-0000-000000000013', '41000000-0000-0000-0000-000000000020', '00000000-0000-0000-0000-000000000002', 'confirmed'),
+  ('51000000-0000-0000-0000-000000000014', '41000000-0000-0000-0000-000000000020', '00000000-0000-0000-0000-000000000003', 'confirmed');
 
 insert into public.payment_submissions (
   id,
@@ -127,7 +131,8 @@ insert into public.payment_submissions (
   ('61000000-0000-0000-0000-000000000002', '51000000-0000-0000-0000-000000000003', '41000000-0000-0000-0000-000000000007', '00000000-0000-0000-0000-000000000003', 'Other', 30000, 'receipts/51000000-0000-0000-0000-000000000003/a.jpg', 'pending'),
   ('61000000-0000-0000-0000-000000000003', '51000000-0000-0000-0000-000000000005', '41000000-0000-0000-0000-000000000009', '00000000-0000-0000-0000-000000000002', 'Player', 30000, 'receipts/51000000-0000-0000-0000-000000000005/a.jpg', 'approved'),
   ('61000000-0000-0000-0000-000000000004', '51000000-0000-0000-0000-000000000006', '41000000-0000-0000-0000-000000000010', '00000000-0000-0000-0000-000000000002', 'Player', 30000, 'receipts/51000000-0000-0000-0000-000000000006/a.jpg', 'approved'),
-  ('61000000-0000-0000-0000-000000000005', '51000000-0000-0000-0000-000000000012', '41000000-0000-0000-0000-000000000018', '00000000-0000-0000-0000-000000000003', 'Other', 30000, 'receipts/51000000-0000-0000-0000-000000000012/a.jpg', 'pending');
+  ('61000000-0000-0000-0000-000000000005', '51000000-0000-0000-0000-000000000012', '41000000-0000-0000-0000-000000000018', '00000000-0000-0000-0000-000000000003', 'Other', 30000, 'receipts/51000000-0000-0000-0000-000000000012/a.jpg', 'pending'),
+  ('61000000-0000-0000-0000-000000000006', '51000000-0000-0000-0000-000000000004', '41000000-0000-0000-0000-000000000008', '00000000-0000-0000-0000-000000000002', 'Player', 30000, 'receipts/51000000-0000-0000-0000-000000000004/a.jpg', 'approved');
 
 insert into storage.objects (id, bucket_id, name, owner, owner_id, metadata)
 values (
@@ -291,6 +296,53 @@ select is(
 );
 
 select is(
+  tests.error_hint($$
+    select public.create_game_session(
+      jsonb_build_object(
+        'title', 'Bad Deadline Session',
+        'fieldId', '20000000-0000-0000-0000-000000000001',
+        'startsAt', (now() + interval '5 days')::text,
+        'endsAt', (now() + interval '5 days 6 hours')::text,
+        'capacity', 10,
+        'gameFee', 30000,
+        'bankAccount', jsonb_build_object(
+          'bankName', 'Bank',
+          'accountNumber', '123-456',
+          'accountHolder', 'Owner'
+        ),
+        'presetId', '30000000-0000-0000-0000-000000000001',
+        'cancelDeadline', (now() + interval '6 days')::text
+      )
+    )
+  $$),
+  'invalid-argument',
+  'create_game_session rejects cancelDeadline after startsAt'
+);
+
+select is(
+  tests.error_hint($$
+    select public.create_game_session(
+      jsonb_build_object(
+        'title', 'Bad Field Session',
+        'fieldId', 'not-a-uuid',
+        'startsAt', (now() + interval '5 days')::text,
+        'endsAt', (now() + interval '5 days 6 hours')::text,
+        'capacity', 10,
+        'gameFee', 30000,
+        'bankAccount', jsonb_build_object(
+          'bankName', 'Bank',
+          'accountNumber', '123-456',
+          'accountHolder', 'Owner'
+        ),
+        'presetId', '30000000-0000-0000-0000-000000000001'
+      )
+    )
+  $$),
+  'invalid-argument',
+  'create_game_session rejects malformed fieldId with app hint'
+);
+
+select is(
   public.update_game_session('41000000-0000-0000-0000-000000000015', '{"capacity":11}'::jsonb)->'updatedFields',
   '["capacity"]'::jsonb,
   'update_game_session returns camelCase updatedFields'
@@ -380,6 +432,18 @@ select is(
   'join_as_operator does not issue an entry pass'
 );
 
+do $$
+begin
+  perform public.join_as_operator('41000000-0000-0000-0000-000000000019');
+end;
+$$;
+
+select is(
+  public.cancel_participation((select id from public.participations where game_session_id = '41000000-0000-0000-0000-000000000019' and user_id = '00000000-0000-0000-0000-000000000001'))->>'refundEligible',
+  'false',
+  'cancel_participation returns refundEligible false for operator self-join without payment'
+);
+
 select is(
   public.mark_attendance((select id from public.participations where game_session_id = '41000000-0000-0000-0000-000000000017' and user_id = '00000000-0000-0000-0000-000000000001'))->>'success',
   'true',
@@ -411,6 +475,18 @@ select is(
   'cancel_game_session is callable by session owner'
 );
 
+do $$
+begin
+  perform public.cancel_game_session('41000000-0000-0000-0000-000000000020', 'count reset');
+end;
+$$;
+
+select is(
+  (select confirmed_count from public.game_sessions where id = '41000000-0000-0000-0000-000000000020'),
+  0,
+  'cancel_game_session resets confirmed_count to zero'
+);
+
 reset role;
 set local role authenticated;
 set local "request.jwt.claim.sub" = '00000000-0000-0000-0000-000000000002';
@@ -431,6 +507,12 @@ select is(
   tests.error_hint($$select public.scan_entry_pass('81000000-0000-0000-0000-000000000001', 'forged-token')$$),
   'failed-precondition',
   'scan_entry_pass rejects forged token'
+);
+
+select is(
+  tests.error_hint($$select public.scan_entry_pass('81000000-0000-0000-0000-000000000001', null::text)$$),
+  'failed-precondition',
+  'scan_entry_pass rejects null token'
 );
 
 select is(

@@ -27,6 +27,15 @@ begin
     perform public.app_error('invalid-argument', 'receipt_path는 필수 문자열입니다');
   end if;
 
+  perform 1
+  from public.game_sessions
+  where id = (
+    select game_session_id
+    from public.participations
+    where id = p_participation_id
+  )
+  for update;
+
   select *
     into v_participation
   from public.participations
@@ -124,6 +133,15 @@ declare
   v_entry_pass_id uuid;
 begin
   v_uid := public.current_uid();
+
+  perform 1
+  from public.game_sessions
+  where id = (
+    select game_session_id
+    from public.payment_submissions
+    where id = p_submission_id
+  )
+  for update;
 
   select *
     into v_submission
@@ -245,6 +263,15 @@ begin
     perform public.app_error('invalid-argument', 'reason는 필수 문자열입니다');
   end if;
 
+  perform 1
+  from public.game_sessions
+  where id = (
+    select game_session_id
+    from public.payment_submissions
+    where id = p_submission_id
+  )
+  for update;
+
   select *
     into v_submission
   from public.payment_submissions
@@ -347,6 +374,15 @@ begin
   if nullif(btrim(p_account_holder), '') is null then
     perform public.app_error('invalid-argument', 'accountHolder는 필수 문자열입니다');
   end if;
+
+  perform 1
+  from public.game_sessions
+  where id = (
+    select game_session_id
+    from public.participations
+    where id = p_participation_id
+  )
+  for update;
 
   select *
     into v_participation

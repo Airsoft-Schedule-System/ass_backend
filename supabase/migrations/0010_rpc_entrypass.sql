@@ -183,6 +183,15 @@ declare
 begin
   v_uid := public.current_uid();
 
+  perform 1
+  from public.game_sessions
+  where id = (
+    select game_session_id
+    from public.entry_passes
+    where id = p_entry_pass_id
+  )
+  for update;
+
   select *
     into v_entry_pass
   from public.entry_passes
@@ -225,7 +234,7 @@ begin
   perform public.assert_session_owner(v_session, v_uid);
   perform public.assert_session_status('scan_entry_pass', v_session.status);
 
-  if public.hash_entry_pass_token(p_token) <> v_entry_pass.qr_token_hash then
+  if public.hash_entry_pass_token(p_token) is distinct from v_entry_pass.qr_token_hash then
     perform public.app_error('failed-precondition', '유효하지 않은 QR');
   end if;
 
