@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set search_path = public, extensions;
 
-select plan(53);
+select plan(80);
 
 create schema if not exists tests;
 
@@ -24,8 +24,26 @@ exception
 end;
 $$;
 
+create or replace function tests.error_detail(sql text)
+returns text
+language plpgsql
+security invoker
+as $$
+declare
+  v_detail text;
+begin
+  execute sql;
+  return null;
+exception
+  when others then
+    get stacked diagnostics v_detail = PG_EXCEPTION_DETAIL;
+    return v_detail;
+end;
+$$;
+
 grant usage on schema tests to anon, authenticated;
 grant execute on function tests.error_hint(text) to anon, authenticated;
+grant execute on function tests.error_detail(text) to anon, authenticated;
 
 do $$
 begin
@@ -85,7 +103,7 @@ insert into public.game_sessions (
   ('41000000-0000-0000-0000-000000000004', 'In Progress Session', '00000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', now() - interval '1 hour', now() + interval '5 hours', 10, 0, 30000, 'Bank', '123-456', 'Owner', '30000000-0000-0000-0000-000000000001', now() - interval '1 day', 'inProgress'),
   ('41000000-0000-0000-0000-000000000005', 'Completed Session', '00000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', now() - interval '3 days', now() - interval '2 days', 10, 0, 30000, 'Bank', '123-456', 'Owner', '30000000-0000-0000-0000-000000000001', now() - interval '4 days', 'completed'),
   ('41000000-0000-0000-0000-000000000006', 'Capacity Session', '00000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', now() + interval '9 days', now() + interval '9 days 6 hours', 1, 0, 30000, 'Bank', '123-456', 'Owner', '30000000-0000-0000-0000-000000000001', now() + interval '7 days', 'recruiting'),
-  ('41000000-0000-0000-0000-000000000007', 'Full Session', '00000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', now() + interval '9 days', now() + interval '9 days 6 hours', 1, 1, 30000, 'Bank', '123-456', 'Owner', '30000000-0000-0000-0000-000000000001', now() + interval '7 days', 'recruiting'),
+  ('41000000-0000-0000-0000-000000000007', 'Full Session', '00000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', now() + interval '9 days', now() + interval '9 days 6 hours', 1, 1, 30000, 'Bank', '123-456', 'Owner', '30000000-0000-0000-0000-000000000001', now() + interval '7 days', 'closed'),
   ('41000000-0000-0000-0000-000000000008', 'Closed Cancel Session', '00000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', now() + interval '9 days', now() + interval '9 days 6 hours', 2, 1, 30000, 'Bank', '123-456', 'Owner', '30000000-0000-0000-0000-000000000001', now() + interval '7 days', 'closed'),
   ('41000000-0000-0000-0000-000000000009', 'Refund Future Session', '00000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', now() + interval '9 days', now() + interval '9 days 6 hours', 3, 1, 30000, 'Bank', '123-456', 'Owner', '30000000-0000-0000-0000-000000000001', now() + interval '7 days', 'recruiting'),
   ('41000000-0000-0000-0000-000000000010', 'Refund Past Session', '00000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', now() + interval '2 days', now() + interval '2 days 6 hours', 3, 1, 30000, 'Bank', '123-456', 'Owner', '30000000-0000-0000-0000-000000000001', now() - interval '1 hour', 'recruiting'),
@@ -96,15 +114,15 @@ insert into public.game_sessions (
   ('41000000-0000-0000-0000-000000000015', 'QR Reuse Session', '00000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', now() + interval '7 days', now() + interval '7 days 6 hours', 10, 1, 30000, 'Bank', '123-456', 'Owner', '30000000-0000-0000-0000-000000000001', now() + interval '5 days', 'recruiting'),
   ('41000000-0000-0000-0000-000000000016', 'QR Expired Session', '00000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', now() - interval '2 days', now() - interval '1 day', 10, 1, 30000, 'Bank', '123-456', 'Owner', '30000000-0000-0000-0000-000000000001', now() - interval '3 days', 'inProgress'),
   ('41000000-0000-0000-0000-000000000017', 'Operator Session', '00000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', now() + interval '7 days', now() + interval '7 days 6 hours', 1, 0, 30000, 'Bank', '123-456', 'Owner', '30000000-0000-0000-0000-000000000001', now() + interval '5 days', 'recruiting'),
-  ('41000000-0000-0000-0000-000000000018', 'Submit Session', '00000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', now() + interval '7 days', now() + interval '7 days 6 hours', 10, 0, 30000, 'Bank', '123-456', 'Owner', '30000000-0000-0000-0000-000000000001', now() + interval '5 days', 'recruiting'),
+  ('41000000-0000-0000-0000-000000000018', 'Review Session', '00000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', now() + interval '7 days', now() + interval '7 days 6 hours', 1, 1, 30000, 'Bank', '123-456', 'Owner', '30000000-0000-0000-0000-000000000001', now() + interval '5 days', 'closed'),
   ('41000000-0000-0000-0000-000000000019', 'Operator Refund Session', '00000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', now() + interval '7 days', now() + interval '7 days 6 hours', 2, 0, 30000, 'Bank', '123-456', 'Owner', '30000000-0000-0000-0000-000000000001', now() + interval '5 days', 'recruiting'),
   ('41000000-0000-0000-0000-000000000020', 'Cancel Count Session', '00000000-0000-0000-0000-000000000004', '20000000-0000-0000-0000-000000000001', now() + interval '7 days', now() + interval '7 days 6 hours', 5, 2, 30000, 'Bank', '123-456', 'Other Owner', '30000000-0000-0000-0000-000000000001', now() + interval '5 days', 'closed');
 
 insert into public.participations (id, game_session_id, user_id, status)
 values
   ('51000000-0000-0000-0000-000000000001', '41000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000002', 'pendingApproval'),
-  ('51000000-0000-0000-0000-000000000002', '41000000-0000-0000-0000-000000000006', '00000000-0000-0000-0000-000000000002', 'paymentReview'),
-  ('51000000-0000-0000-0000-000000000003', '41000000-0000-0000-0000-000000000007', '00000000-0000-0000-0000-000000000003', 'paymentReview'),
+  ('51000000-0000-0000-0000-000000000002', '41000000-0000-0000-0000-000000000006', '00000000-0000-0000-0000-000000000002', 'awaitingPayment'),
+  ('51000000-0000-0000-0000-000000000003', '41000000-0000-0000-0000-000000000007', '00000000-0000-0000-0000-000000000003', 'awaitingPayment'),
   ('51000000-0000-0000-0000-000000000004', '41000000-0000-0000-0000-000000000008', '00000000-0000-0000-0000-000000000002', 'confirmed'),
   ('51000000-0000-0000-0000-000000000005', '41000000-0000-0000-0000-000000000009', '00000000-0000-0000-0000-000000000002', 'confirmed'),
   ('51000000-0000-0000-0000-000000000006', '41000000-0000-0000-0000-000000000010', '00000000-0000-0000-0000-000000000002', 'cancelled'),
@@ -113,7 +131,7 @@ values
   ('51000000-0000-0000-0000-000000000009', '41000000-0000-0000-0000-000000000015', '00000000-0000-0000-0000-000000000002', 'confirmed'),
   ('51000000-0000-0000-0000-000000000010', '41000000-0000-0000-0000-000000000016', '00000000-0000-0000-0000-000000000002', 'confirmed'),
   ('51000000-0000-0000-0000-000000000011', '41000000-0000-0000-0000-000000000018', '00000000-0000-0000-0000-000000000002', 'awaitingPayment'),
-  ('51000000-0000-0000-0000-000000000012', '41000000-0000-0000-0000-000000000018', '00000000-0000-0000-0000-000000000003', 'paymentReview'),
+  ('51000000-0000-0000-0000-000000000012', '41000000-0000-0000-0000-000000000018', '00000000-0000-0000-0000-000000000003', 'confirmed'),
   ('51000000-0000-0000-0000-000000000013', '41000000-0000-0000-0000-000000000020', '00000000-0000-0000-0000-000000000002', 'confirmed'),
   ('51000000-0000-0000-0000-000000000014', '41000000-0000-0000-0000-000000000020', '00000000-0000-0000-0000-000000000003', 'confirmed');
 
@@ -127,22 +145,45 @@ insert into public.payment_submissions (
   receipt_path,
   status
 ) values
-  ('61000000-0000-0000-0000-000000000001', '51000000-0000-0000-0000-000000000002', '41000000-0000-0000-0000-000000000006', '00000000-0000-0000-0000-000000000002', 'Player', 30000, 'receipts/51000000-0000-0000-0000-000000000002/a.jpg', 'pending'),
-  ('61000000-0000-0000-0000-000000000002', '51000000-0000-0000-0000-000000000003', '41000000-0000-0000-0000-000000000007', '00000000-0000-0000-0000-000000000003', 'Other', 30000, 'receipts/51000000-0000-0000-0000-000000000003/a.jpg', 'pending'),
   ('61000000-0000-0000-0000-000000000003', '51000000-0000-0000-0000-000000000005', '41000000-0000-0000-0000-000000000009', '00000000-0000-0000-0000-000000000002', 'Player', 30000, 'receipts/51000000-0000-0000-0000-000000000005/a.jpg', 'approved'),
   ('61000000-0000-0000-0000-000000000004', '51000000-0000-0000-0000-000000000006', '41000000-0000-0000-0000-000000000010', '00000000-0000-0000-0000-000000000002', 'Player', 30000, 'receipts/51000000-0000-0000-0000-000000000006/a.jpg', 'approved'),
   ('61000000-0000-0000-0000-000000000005', '51000000-0000-0000-0000-000000000012', '41000000-0000-0000-0000-000000000018', '00000000-0000-0000-0000-000000000003', 'Other', 30000, 'receipts/51000000-0000-0000-0000-000000000012/a.jpg', 'pending'),
-  ('61000000-0000-0000-0000-000000000006', '51000000-0000-0000-0000-000000000004', '41000000-0000-0000-0000-000000000008', '00000000-0000-0000-0000-000000000002', 'Player', 30000, 'receipts/51000000-0000-0000-0000-000000000004/a.jpg', 'approved');
+  ('61000000-0000-0000-0000-000000000006', '51000000-0000-0000-0000-000000000004', '41000000-0000-0000-0000-000000000008', '00000000-0000-0000-0000-000000000002', 'Player', 30000, 'receipts/51000000-0000-0000-0000-000000000004/a.jpg', 'rejected');
 
 insert into storage.objects (id, bucket_id, name, owner, owner_id, metadata)
-values (
-  'a1000000-0000-0000-0000-000000000001',
-  'receipts',
-  'receipts/51000000-0000-0000-0000-000000000011/upload.jpg',
-  '00000000-0000-0000-0000-000000000002',
-  '00000000-0000-0000-0000-000000000002',
-  '{"mimetype":"image/jpeg"}'
-);
+values
+  (
+    'a1000000-0000-0000-0000-000000000001',
+    'receipts',
+    'receipts/51000000-0000-0000-0000-000000000011/upload.jpg',
+    '00000000-0000-0000-0000-000000000002',
+    '00000000-0000-0000-0000-000000000002',
+    '{"mimetype":"image/jpeg"}'
+  ),
+  (
+    'a1000000-0000-0000-0000-000000000002',
+    'receipts',
+    'receipts/51000000-0000-0000-0000-000000000002/upload.jpg',
+    '00000000-0000-0000-0000-000000000002',
+    '00000000-0000-0000-0000-000000000002',
+    '{"mimetype":"image/jpeg"}'
+  ),
+  (
+    'a1000000-0000-0000-0000-000000000003',
+    'receipts',
+    'receipts/51000000-0000-0000-0000-000000000003/upload.jpg',
+    '00000000-0000-0000-0000-000000000003',
+    '00000000-0000-0000-0000-000000000003',
+    '{"mimetype":"image/jpeg"}'
+  ),
+  (
+    'a1000000-0000-0000-0000-000000000004',
+    'receipts',
+    'receipts/51000000-0000-0000-0000-000000000012/resubmit.jpg',
+    '00000000-0000-0000-0000-000000000003',
+    '00000000-0000-0000-0000-000000000003',
+    '{"mimetype":"image/jpeg"}'
+  );
 
 insert into public.entry_passes (
   id,
@@ -179,6 +220,15 @@ insert into public.entry_passes (
     'cancel-hash',
     now(),
     now() + interval '1 day'
+  ),
+  (
+    '81000000-0000-0000-0000-000000000004',
+    '51000000-0000-0000-0000-000000000012',
+    '41000000-0000-0000-0000-000000000018',
+    '00000000-0000-0000-0000-000000000003',
+    'review-hash',
+    now(),
+    now() + interval '8 days'
   );
 
 create temp table test_tokens (
@@ -249,15 +299,94 @@ select is(
 );
 
 select is(
-  public.submit_payment('51000000-0000-0000-0000-000000000011', 'Player', 30000, 'receipts/51000000-0000-0000-0000-000000000011/upload.jpg')->>'success',
+  public.submit_payment('51000000-0000-0000-0000-000000000002', 'Player', 30000, 'receipts/51000000-0000-0000-0000-000000000002/upload.jpg')->>'success',
   'true',
   'participant can submit payment for own uploaded receipt'
 );
 
 select is(
-  (select status::text from public.participations where id = '51000000-0000-0000-0000-000000000011'),
-  'paymentReview',
-  'submit_payment moves participation to paymentReview'
+  (select status::text from public.participations where id = '51000000-0000-0000-0000-000000000002'),
+  'confirmed',
+  'submit_payment immediately confirms participation'
+);
+
+select is(
+  (select status::text from public.payment_submissions where participation_id = '51000000-0000-0000-0000-000000000002'),
+  'pending',
+  'submit_payment records pending evidence'
+);
+
+select is(
+  (select confirmed_count from public.game_sessions where id = '41000000-0000-0000-0000-000000000006'),
+  1,
+  'submit_payment increments confirmed_count'
+);
+
+select is(
+  (select status::text from public.game_sessions where id = '41000000-0000-0000-0000-000000000006'),
+  'closed',
+  'submit_payment closes session when capacity is reached'
+);
+
+select is(
+  (select count(*) from public.entry_passes where participation_id = '51000000-0000-0000-0000-000000000002' and status = 'active'),
+  1::bigint,
+  'submit_payment issues an active entry pass'
+);
+
+select is(
+  (select count(*) from public.notifications where participation_id = '51000000-0000-0000-0000-000000000002' and type = 'participation.confirmed'),
+  1::bigint,
+  'submit_payment creates one participation.confirmed notification'
+);
+
+select is(
+  (select data->>'entryPassId' from public.notifications where participation_id = '51000000-0000-0000-0000-000000000002' and type = 'participation.confirmed'),
+  (select id::text from public.entry_passes where participation_id = '51000000-0000-0000-0000-000000000002' and status = 'active'),
+  'participation.confirmed notification includes entryPassId'
+);
+
+select is(
+  (select count(*) from public.notifications where participation_id = '51000000-0000-0000-0000-000000000002' and type = 'payment.decision'),
+  0::bigint,
+  'submit_payment does not create an approved payment.decision notification'
+);
+
+select hasnt_function(
+  'public',
+  'approve_payment',
+  array['uuid'],
+  'approve_payment is removed'
+);
+
+reset role;
+set local role authenticated;
+set local "request.jwt.claim.sub" = '00000000-0000-0000-0000-000000000003';
+set local "request.jwt.claim.role" = 'authenticated';
+
+select throws_ok(
+  $$select public.submit_payment('51000000-0000-0000-0000-000000000003', 'Other', 30000, 'receipts/51000000-0000-0000-0000-000000000003/upload.jpg')$$,
+  'P0001',
+  '정원이 마감되었습니다',
+  'submit_payment rejects a full session'
+);
+
+select is(
+  tests.error_hint($$select public.submit_payment('51000000-0000-0000-0000-000000000003', 'Other', 30000, 'receipts/51000000-0000-0000-0000-000000000003/upload.jpg')$$),
+  'failed-precondition',
+  'full submit_payment uses failed-precondition'
+);
+
+select is(
+  tests.error_detail($$select public.submit_payment('51000000-0000-0000-0000-000000000003', 'Other', 30000, 'receipts/51000000-0000-0000-0000-000000000003/upload.jpg')$$),
+  'capacityFilled',
+  'full submit_payment exposes capacityFilled detail'
+);
+
+select is(
+  (select status::text from public.participations where id = '51000000-0000-0000-0000-000000000003'),
+  'awaitingPayment',
+  'full submit_payment leaves participation awaitingPayment'
 );
 
 reset role;
@@ -357,33 +486,57 @@ select is(
 );
 
 set local role authenticated;
+set local "request.jwt.claim.sub" = '00000000-0000-0000-0000-000000000002';
+set local "request.jwt.claim.role" = 'authenticated';
+
+select is(
+  tests.error_hint($$select public.mark_payment_reviewed('61000000-0000-0000-0000-000000000005')$$),
+  'permission-denied',
+  'non-owner cannot mark payment reviewed'
+);
+
+reset role;
+set local role authenticated;
 set local "request.jwt.claim.sub" = '00000000-0000-0000-0000-000000000001';
 set local "request.jwt.claim.role" = 'authenticated';
 
 select is(
-  public.approve_payment('61000000-0000-0000-0000-000000000001')->>'participationId',
-  '51000000-0000-0000-0000-000000000002',
-  'approve_payment succeeds at capacity boundary'
+  public.mark_payment_reviewed('61000000-0000-0000-0000-000000000005')->>'success',
+  'true',
+  'session owner can mark payment reviewed'
 );
 
 select is(
-  (select status::text from public.game_sessions where id = '41000000-0000-0000-0000-000000000006'),
-  'closed',
-  'approve_payment closes session at capacity'
+  (select status::text from public.payment_submissions where id = '61000000-0000-0000-0000-000000000005'),
+  'approved',
+  'mark_payment_reviewed moves pending evidence to approved'
 );
 
 select is(
-  (select count(*) from public.entry_passes where participation_id = '51000000-0000-0000-0000-000000000002' and status = 'active'),
-  1::bigint,
-  'approve_payment issues an active entry pass'
+  (select reviewed_by::text from public.payment_submissions where id = '61000000-0000-0000-0000-000000000005'),
+  '00000000-0000-0000-0000-000000000001',
+  'mark_payment_reviewed records the reviewer'
 );
 
+select is(
+  (select status::text from public.participations where id = '51000000-0000-0000-0000-000000000012'),
+  'confirmed',
+  'mark_payment_reviewed leaves participation unchanged'
+);
+
+select is(
+  (select confirmed_count from public.game_sessions where id = '41000000-0000-0000-0000-000000000018'),
+  1,
+  'mark_payment_reviewed leaves session count unchanged'
+);
+
+-- RLS(notifications_select_self)에 가려 통과하는 거짓 양성을 피하려고 롤 해제 후 확인
 reset role;
 
 select is(
-  (select count(*) from public.notifications where participation_id = '51000000-0000-0000-0000-000000000002' and type in ('payment.decision', 'participation.confirmed')),
-  2::bigint,
-  'approve_payment creates payment decision and confirmed notifications'
+  (select count(*) from public.notifications where participation_id = '51000000-0000-0000-0000-000000000012'),
+  0::bigint,
+  'mark_payment_reviewed does not create a notification'
 );
 
 set local role authenticated;
@@ -391,15 +544,105 @@ set local "request.jwt.claim.sub" = '00000000-0000-0000-0000-000000000001';
 set local "request.jwt.claim.role" = 'authenticated';
 
 select is(
-  tests.error_hint($$select public.approve_payment('61000000-0000-0000-0000-000000000002')$$),
-  'failed-precondition',
-  'approve_payment rejects full capacity'
+  public.reject_payment('61000000-0000-0000-0000-000000000005', 'bad image')->>'success',
+  'true',
+  'session owner can reject reviewed payment evidence'
+);
+
+select is(
+  (select status::text from public.payment_submissions where id = '61000000-0000-0000-0000-000000000005'),
+  'rejected',
+  'reject_payment marks evidence rejected'
+);
+
+select is(
+  (select status::text from public.participations where id = '51000000-0000-0000-0000-000000000012'),
+  'awaitingPayment',
+  'reject_payment returns confirmed participation to awaitingPayment'
+);
+
+select is(
+  (select status::text from public.entry_passes where id = '81000000-0000-0000-0000-000000000004'),
+  'revoked',
+  'reject_payment revokes the active entry pass'
+);
+
+select is(
+  (select confirmed_count from public.game_sessions where id = '41000000-0000-0000-0000-000000000018'),
+  0,
+  'reject_payment decrements confirmed_count'
+);
+
+select is(
+  (select status::text from public.game_sessions where id = '41000000-0000-0000-0000-000000000018'),
+  'recruiting',
+  'reject_payment reopens a closed future session'
+);
+
+-- 알림 수신자는 참가자(...0003)이고 현재 롤은 운영자(...0001) — notifications_select_self RLS를 우회하기 위해 롤 해제 후 확인
+reset role;
+
+select is(
+  (select count(*) from public.notifications where participation_id = '51000000-0000-0000-0000-000000000012' and type = 'payment.decision' and data->>'decision' = 'rejected' and data->>'reason' = 'bad image'),
+  1::bigint,
+  'reject_payment creates one rejected payment.decision notification'
+);
+
+set local role authenticated;
+set local "request.jwt.claim.sub" = '00000000-0000-0000-0000-000000000003';
+set local "request.jwt.claim.role" = 'authenticated';
+
+select is(
+  public.submit_payment('51000000-0000-0000-0000-000000000012', 'Other', 30000, 'receipts/51000000-0000-0000-0000-000000000012/resubmit.jpg')->>'success',
+  'true',
+  'rejected participant can resubmit payment evidence'
+);
+
+select is(
+  (select status::text from public.participations where id = '51000000-0000-0000-0000-000000000012'),
+  'confirmed',
+  'resubmission confirms participation again'
+);
+
+select is(
+  (select count(*) from public.entry_passes where participation_id = '51000000-0000-0000-0000-000000000012' and status = 'active'),
+  1::bigint,
+  'resubmission issues a new active entry pass'
+);
+
+select is(
+  (select count(*) from public.entry_passes where participation_id = '51000000-0000-0000-0000-000000000012' and status = 'revoked'),
+  1::bigint,
+  'resubmission preserves the revoked entry pass history'
+);
+
+select is(
+  (select confirmed_count from public.game_sessions where id = '41000000-0000-0000-0000-000000000018'),
+  1,
+  'resubmission increments confirmed_count again'
+);
+
+select is(
+  (select status::text from public.game_sessions where id = '41000000-0000-0000-0000-000000000018'),
+  'closed',
+  'resubmission closes the session again at capacity'
+);
+
+reset role;
+set local role authenticated;
+set local "request.jwt.claim.sub" = '00000000-0000-0000-0000-000000000001';
+set local "request.jwt.claim.role" = 'authenticated';
+
+select is(
+  (select count(*) from public.payment_submissions where participation_id = '51000000-0000-0000-0000-000000000012' and status = 'pending'),
+  1::bigint,
+  'resubmission records new pending evidence'
 );
 
 select is(
   public.cancel_participation('51000000-0000-0000-0000-000000000004')->>'refundEligible',
   'true',
-  'cancel_participation marks confirmed future cancellation refund eligible'
+  'cancel_participation treats rejected payment evidence as refund eligible'
 );
 
 select is(
@@ -415,7 +658,7 @@ select is(
 );
 
 select is(
-  tests.error_hint($$select public.join_as_operator('41000000-0000-0000-0000-000000000007')$$),
+  tests.error_hint($$select public.join_as_operator('41000000-0000-0000-0000-000000000011')$$),
   'failed-precondition',
   'join_as_operator rejects full capacity'
 );
@@ -430,6 +673,12 @@ select is(
   (select count(*) from public.entry_passes where participation_id = (select id from public.participations where game_session_id = '41000000-0000-0000-0000-000000000017' and user_id = '00000000-0000-0000-0000-000000000001')),
   0::bigint,
   'join_as_operator does not issue an entry pass'
+);
+
+select is(
+  (select count(*) from public.payment_submissions where participation_id = (select id from public.participations where game_session_id = '41000000-0000-0000-0000-000000000017' and user_id = '00000000-0000-0000-0000-000000000001')),
+  0::bigint,
+  'join_as_operator remains confirmed without payment evidence'
 );
 
 do $$
@@ -448,20 +697,6 @@ select is(
   public.mark_attendance((select id from public.participations where game_session_id = '41000000-0000-0000-0000-000000000017' and user_id = '00000000-0000-0000-0000-000000000001'))->>'success',
   'true',
   'mark_attendance works without an entry pass'
-);
-
-select is(
-  tests.error_hint($$select public.reject_payment('61000000-0000-0000-0000-000000000005', 'bad image')$$),
-  null,
-  'reject_payment succeeds for owner'
-);
-
-reset role;
-
-select is(
-  (select count(*) from public.notifications where participation_id = '51000000-0000-0000-0000-000000000012' and type = 'payment.decision'),
-  1::bigint,
-  'reject_payment creates payment.decision notification'
 );
 
 reset role;

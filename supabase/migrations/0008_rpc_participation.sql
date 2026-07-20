@@ -322,7 +322,7 @@ begin
     perform public.app_error('permission-denied', '본인 또는 세션 운영자만 수행할 수 있습니다');
   end if;
 
-  if v_participation.status not in ('pendingApproval', 'awaitingPayment', 'paymentReview', 'confirmed') then
+  if v_participation.status not in ('pendingApproval', 'awaitingPayment', 'confirmed') then
     perform public.app_error(
       'failed-precondition',
       format('취소 가능한 참가 상태가 아닙니다 (현재: %s)', v_participation.status)
@@ -335,7 +335,6 @@ begin
       select 1
       from public.payment_submissions ps
       where ps.participation_id = p_participation_id
-        and ps.status = 'approved'
     );
 
   update public.participations
@@ -348,7 +347,10 @@ begin
     update public.game_sessions
     set confirmed_count = v_next_count,
         status = case
-          when status = 'closed' and v_next_count < capacity then 'recruiting'::public.game_session_status
+          when status = 'closed'
+            and v_next_count < capacity
+            and starts_at > now()
+          then 'recruiting'::public.game_session_status
           else status
         end
     where id = v_session.id;

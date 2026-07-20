@@ -14,6 +14,8 @@ declare
   v_participation public.participations;
   v_session public.game_sessions;
   v_submission_id uuid;
+  v_next_count int;
+  v_entry_pass_id uuid;
 begin
   v_uid := public.current_uid();
 
@@ -91,6 +93,14 @@ begin
     perform public.app_error('failed-precondition', '송금증 업로드를 확인할 수 없습니다');
   end if;
 
+  if v_session.confirmed_count >= v_session.capacity then
+    perform public.app_error(
+      'failed-precondition',
+      '정원이 마감되었습니다',
+      'capacityFilled'
+    );
+  end if;
+
   insert into public.payment_submissions (
     participation_id,
     game_session_id,
@@ -111,14 +121,39 @@ begin
   returning id into v_submission_id;
 
   update public.participations
-  set status = 'paymentReview'
+  set status = 'confirmed'
   where id = p_participation_id;
+
+  v_next_count := v_session.confirmed_count + 1;
+
+  update public.game_sessions
+  set confirmed_count = v_next_count,
+      status = case
+        when status = 'recruiting' and v_next_count >= capacity then 'closed'::public.game_session_status
+        else status
+      end
+  where id = v_session.id;
+
+  v_entry_pass_id := public.issue_entry_pass(v_participation, v_session);
+
+  perform public.notify(
+    v_participation.user_id,
+    'participation.confirmed',
+    '참석이 확정되었습니다',
+    format('%s 참석 확정! QR 입장권을 확인하세요', v_session.title),
+    format('/participations/%s/pass', v_participation.id),
+    jsonb_build_object('entryPassId', v_entry_pass_id::text),
+    v_session.id,
+    v_participation.id
+  );
 
   return jsonb_build_object('success', true, 'paymentSubmissionId', v_submission_id);
 end;
 $$;
 
-create or replace function public.approve_payment(p_submission_id uuid)
+drop function if exists public.approve_payment(uuid);
+
+create or replace function public.mark_payment_reviewed(p_submission_id uuid)
 returns jsonb
 language plpgsql
 security definer
@@ -127,10 +162,7 @@ as $$
 declare
   v_uid uuid;
   v_submission public.payment_submissions;
-  v_participation public.participations;
   v_session public.game_sessions;
-  v_next_count int;
-  v_entry_pass_id uuid;
 begin
   v_uid := public.current_uid();
 
@@ -154,16 +186,6 @@ begin
   end if;
 
   select *
-    into v_participation
-  from public.participations
-  where id = v_submission.participation_id
-  for update;
-
-  if not found then
-    perform public.app_error('not-found', '참가 신청을 찾을 수 없습니다');
-  end if;
-
-  select *
     into v_session
   from public.game_sessions
   where id = v_submission.game_session_id
@@ -174,24 +196,12 @@ begin
   end if;
 
   perform public.assert_session_owner(v_session, v_uid);
-  perform public.assert_session_status('approve_payment', v_session.status);
 
   if v_submission.status <> 'pending' then
     perform public.app_error(
       'failed-precondition',
-      format('확인 대기(pending) 상태가 아닙니다 (현재: %s)', v_submission.status)
+      format('검수 전(pending) 상태가 아닙니다 (현재: %s)', v_submission.status)
     );
-  end if;
-
-  if v_participation.status <> 'paymentReview' then
-    perform public.app_error(
-      'failed-precondition',
-      format('송금증 확인 단계(paymentReview)가 아닙니다 (현재: %s)', v_participation.status)
-    );
-  end if;
-
-  if v_session.confirmed_count >= v_session.capacity then
-    perform public.app_error('failed-precondition', '정원이 가득 찼습니다');
   end if;
 
   update public.payment_submissions
@@ -200,45 +210,7 @@ begin
       reviewed_at = now()
   where id = p_submission_id;
 
-  update public.participations
-  set status = 'confirmed'
-  where id = v_participation.id;
-
-  v_next_count := v_session.confirmed_count + 1;
-
-  update public.game_sessions
-  set confirmed_count = v_next_count,
-      status = case
-        when status = 'recruiting' and v_next_count >= capacity then 'closed'::public.game_session_status
-        else status
-      end
-  where id = v_session.id;
-
-  v_entry_pass_id := public.issue_entry_pass(v_participation, v_session);
-
-  perform public.notify(
-    v_participation.user_id,
-    'payment.decision',
-    '송금증이 확인되었습니다',
-    format('%s 송금증이 확인되었습니다', v_session.title),
-    format('/participations/%s/payment', v_participation.id),
-    jsonb_build_object('decision', 'approved'),
-    v_session.id,
-    v_participation.id
-  );
-
-  perform public.notify(
-    v_participation.user_id,
-    'participation.confirmed',
-    '참석이 확정되었습니다',
-    format('%s 참석 확정! QR 입장권을 확인하세요', v_session.title),
-    format('/participations/%s/pass', v_participation.id),
-    jsonb_build_object('entryPassId', v_entry_pass_id::text),
-    v_session.id,
-    v_participation.id
-  );
-
-  return jsonb_build_object('success', true, 'participationId', v_participation.id);
+  return jsonb_build_object('success', true);
 end;
 $$;
 
@@ -256,6 +228,7 @@ declare
   v_submission public.payment_submissions;
   v_participation public.participations;
   v_session public.game_sessions;
+  v_next_count int;
 begin
   v_uid := public.current_uid();
 
@@ -305,17 +278,17 @@ begin
   perform public.assert_session_owner(v_session, v_uid);
   perform public.assert_session_status('reject_payment', v_session.status);
 
-  if v_submission.status <> 'pending' then
+  if v_submission.status not in ('pending', 'approved') then
     perform public.app_error(
       'failed-precondition',
-      format('확인 대기(pending) 상태가 아닙니다 (현재: %s)', v_submission.status)
+      format('반려 가능한 송금증 상태가 아닙니다 (현재: %s)', v_submission.status)
     );
   end if;
 
-  if v_participation.status <> 'paymentReview' then
+  if v_participation.status <> 'confirmed' then
     perform public.app_error(
       'failed-precondition',
-      format('송금증 확인 단계(paymentReview)가 아닙니다 (현재: %s)', v_participation.status)
+      format('확정된 참가만 송금증을 반려할 수 있습니다 (현재: %s)', v_participation.status)
     );
   end if;
 
@@ -330,8 +303,26 @@ begin
   set status = 'awaitingPayment'
   where id = v_participation.id;
 
+  update public.entry_passes
+  set status = 'revoked'
+  where participation_id = v_participation.id
+    and status = 'active';
+
+  v_next_count := greatest(v_session.confirmed_count - 1, 0);
+
+  update public.game_sessions
+  set confirmed_count = v_next_count,
+      status = case
+        when status = 'closed'
+          and v_next_count < capacity
+          and starts_at > now()
+        then 'recruiting'::public.game_session_status
+        else status
+      end
+  where id = v_session.id;
+
   perform public.notify(
-    v_submission.user_id,
+    v_participation.user_id,
     'payment.decision',
     '송금증이 반려되었습니다',
     format('%s. 다시 송금증을 첨부해주세요', p_reason),
@@ -463,11 +454,11 @@ end;
 $$;
 
 revoke execute on function public.submit_payment(uuid, text, numeric, text) from public;
-revoke execute on function public.approve_payment(uuid) from public;
+revoke execute on function public.mark_payment_reviewed(uuid) from public;
 revoke execute on function public.reject_payment(uuid, text) from public;
 revoke execute on function public.request_refund(uuid, text, text, text, text) from public;
 
 grant execute on function public.submit_payment(uuid, text, numeric, text) to authenticated;
-grant execute on function public.approve_payment(uuid) to authenticated;
+grant execute on function public.mark_payment_reviewed(uuid) to authenticated;
 grant execute on function public.reject_payment(uuid, text) to authenticated;
 grant execute on function public.request_refund(uuid, text, text, text, text) to authenticated;
