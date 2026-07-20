@@ -1,11 +1,20 @@
 create extension if not exists supabase_vault cascade;
 
-create or replace function public.app_error(err_code text, msg text)
+create or replace function public.app_error(
+  p_code text,
+  p_message text,
+  p_detail text default null
+)
 returns void
 language plpgsql
 as $$
 begin
-  raise exception '%', msg using errcode = 'P0001', hint = err_code;
+  if p_detail is null then
+    raise exception '%', p_message using errcode = 'P0001', hint = p_code;
+  else
+    raise exception '%', p_message
+      using errcode = 'P0001', hint = p_code, detail = p_detail;
+  end if;
 end;
 $$;
 
@@ -115,7 +124,6 @@ begin
     when 'approve_participation' then array['recruiting'::public.game_session_status, 'closed'::public.game_session_status]
     when 'reject_participation' then array['recruiting'::public.game_session_status, 'closed'::public.game_session_status]
     when 'submit_payment' then array['recruiting'::public.game_session_status, 'closed'::public.game_session_status]
-    when 'approve_payment' then array['recruiting'::public.game_session_status, 'closed'::public.game_session_status]
     when 'reject_payment' then array['recruiting'::public.game_session_status, 'closed'::public.game_session_status]
     when 'update_game_session' then array['recruiting'::public.game_session_status, 'closed'::public.game_session_status, 'inProgress'::public.game_session_status]
     when 'cancel_game_session' then array['recruiting'::public.game_session_status, 'closed'::public.game_session_status, 'inProgress'::public.game_session_status]
@@ -201,7 +209,7 @@ begin
 end;
 $$;
 
-revoke execute on function public.app_error(text, text) from public, anon, authenticated;
+revoke execute on function public.app_error(text, text, text) from public, anon, authenticated;
 revoke execute on function public.current_uid() from public, anon, authenticated;
 revoke execute on function public.try_uuid(text) from public, anon, authenticated;
 revoke execute on function public.try_timestamptz(text) from public, anon, authenticated;
