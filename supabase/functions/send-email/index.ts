@@ -114,7 +114,15 @@ function parseSender(value: string): EmailSender {
 }
 
 function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
+  if (error instanceof Error) {
+    return error.message;
+  }
+  // Supabase/PostgREST errors are plain objects (message/code/hint), not Error
+  // instances — String() would flatten them to "[object Object]".
+  if (isJsonObject(error)) {
+    return JSON.stringify(error);
+  }
+  return String(error);
 }
 
 Deno.serve(async (request) => {

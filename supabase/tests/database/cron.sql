@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set search_path = public, extensions;
 
-select plan(14);
+select plan(15);
 
 reset role;
 
@@ -160,6 +160,13 @@ select is(
   ),
   'Google Name',
   'handle_new_user falls back to name'
+);
+
+-- send-email Edge Function은 service-role로 수신자 이메일을 읽는다.
+-- 0005의 blanket revoke(from public)가 service_role 접근을 걷어냈던 회귀를 고정한다.
+select ok(
+  has_column_privilege('service_role', 'public.users', 'email', 'SELECT'),
+  'service_role can read users.email (send-email recipient lookup)'
 );
 
 select * from finish();

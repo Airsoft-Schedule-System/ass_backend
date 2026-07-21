@@ -243,3 +243,8 @@ grant update (is_read) on public.notifications to authenticated;
 grant select, insert, update, delete on public.fcm_tokens to authenticated;
 
 grant execute on function public.is_session_owner(uuid) to authenticated;
+
+-- service_role: 위 blanket revoke(from public)가 service_role 베이스라인까지 걷어내므로,
+-- 서버 전용(Edge Function) 경로가 읽어야 하는 것을 명시적으로 되돌린다.
+-- send-email Edge Function이 수신자 주소를 조회한다(RLS 우회 = service-role 필수).
+grant select (id, email) on public.users to service_role;
