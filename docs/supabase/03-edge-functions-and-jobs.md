@@ -53,7 +53,7 @@ fn_send_reminders(pg_cron) ──┘                                         └
   6. **어떤 실패도 5xx로 던지지 않고 로깅 후 200**(웹훅 재시도 폭주 방지·제품 무영향 원칙).
 - 검증: `supabase functions serve send-push` + curl(웹훅 페이로드 모사, 시크릿 유/무, 토큰 0건/무효 토큰 케이스).
 
-## 3. pg_cron 등록 (0012)
+## 3. pg_cron 등록 (0015)
 
 ```sql
 select cron.schedule('status-transition', '0 * * * *',    $$select fn_status_transition()$$);

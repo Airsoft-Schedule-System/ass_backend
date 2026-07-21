@@ -58,7 +58,7 @@ ass_backend/ (branch: supabase-backend)
       0009_rpc_payment_refund.sql
       0010_rpc_entrypass.sql
       0011_triggers.sql         # auth.users→users, updated_at
-      0012_cron.sql
+      0015_cron.sql
       0013_storage.sql          # 버킷 + storage RLS
     functions/
       send-push/index.ts        # Edge: FCM HTTP v1
@@ -81,7 +81,7 @@ ass_backend/ (branch: supabase-backend)
 |------|------|------|------|
 | **S1** | migrations 0001–0005 + 0011 + 0013 (스키마·RLS·트리거·스토리지) | 01 전체 | `supabase db reset` 무오류 + pgTAP: 제약(정원 CHECK·중복 UNIQUE)·RLS(본인/운영자/타인 접근 매트릭스) |
 | **S2** | migrations 0006–0010 (RPC 15종 + 헬퍼) | 02 전체 | pgTAP: 기존 vitest 54건 시나리오 이식(02 §5 목록) — happy/guard/edge 전수 |
-| **S3** | 0012(cron) + Edge `send-push` + 웹훅 배선 | 03 전체 | 로컬: `supabase functions serve` + curl 계약 테스트, cron은 SQL 함수 직접 호출 검증 |
+| **S3** | 0015(cron) + Edge `send-push` + 웹훅 배선 | 03 전체 | 로컬: `supabase functions serve` + curl 계약 테스트, cron은 SQL 함수 직접 호출 검증 |
 | **S4** | FE `supabaseRepository` 구현(HOAN 주도, 우리는 계약 지원) | contract-v3 | ass_client `npm run check`/`build` + 로컬 스택 연동 수동 E2E |
 
 **위임 프로토콜(각 Wave 공통)**: ① 해당 지침 md를 Codex 프롬프트의 유일 기준으로 지정 ② 브랜치 `supabase-backend`, 커밋 금지 ③ 완료 기준 = 위 검증 명령 통과 ④ 우리 환경 재검증 → 커밋·푸시. (Wave 1·2에서 검증된 파이프라인 그대로. Codex가 wedge되면 산출물은 디스크에 남으므로 직접 인계.)
