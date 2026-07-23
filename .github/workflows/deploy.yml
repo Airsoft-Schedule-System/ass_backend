@@ -73,3 +73,9 @@ jobs:
 
       - name: Deploy pending migrations
         run: supabase db push
+
+      # Edge Functions는 마이그레이션과 별개로 배포된다.
+      # 0014_webhook 트리거가 부르는 send-email 함수가 없으면 알림이 실제로 나가지 않는다.
+      # 실발신 시크릿(EMAIL_API_KEY 등)은 프로젝트에 별도 설정 — 미설정 시 함수는 dry-run(무해).
+      - name: Deploy Edge Functions
+        run: supabase functions deploy --project-ref "$SUPABASE_PROJECT_ID"
