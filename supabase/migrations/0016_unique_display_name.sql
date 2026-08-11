@@ -10,18 +10,26 @@
 -- 1) 기존 데이터 정규화 --------------------------------------------------
 -- dev/stg에 테스트 계정이 남아 있을 수 있어, 제약을 걸기 전에 먼저 정리한다.
 
--- 1a. 빈 닉네임 → 자동 생성
+-- 1a. 유니코드 정규화 + 공백 정리 + 길이 제한
+--     NFC/NFD는 화면상 완전히 동일한 글자를 서로 다른 바이트열로 표현한다.
+--     정규화하지 않으면 '원본이름'(NFC)과 '원본이름'(NFD)이 둘 다 존재할 수 있고,
+--     이는 육안으로 구분 불가능한 사칭 통로가 된다(로컬에서 재현 확인).
+update public.users
+set display_name = left(btrim(normalize(display_name, NFC)), 20)
+where display_name is distinct from left(btrim(normalize(display_name, NFC)), 20);
+
+-- 1b. 빈 닉네임 → 자동 생성
 update public.users
 set display_name = '유저' || substr(replace(id::text, '-', ''), 1, 6)
 where nullif(btrim(display_name), '') is null;
 
--- 1b. 중복(대소문자·공백 무시) → 먼저 만든 계정이 원본을 유지하고 나머지에 번호 부여
+-- 1c. 중복(정규화·대소문자 무시) → 먼저 만든 계정이 원본을 유지하고 나머지에 번호 부여
 with ranked as (
   select
     id,
     display_name,
     row_number() over (
-      partition by lower(btrim(display_name))
+      partition by lower(btrim(normalize(display_name, NFC)))
       order by created_at, id
     ) as rn
   from public.users
@@ -40,10 +48,33 @@ alter table public.users
   add constraint users_display_name_not_blank
   check (btrim(display_name) <> '');
 
--- 대소문자·공백을 무시한 유니크. 'Hong'/'hong'/' hong ' 을 같은 이름으로 취급해
+-- 길이 상한: 없으면 프로필 수정으로 300자 닉네임도 들어간다(로컬 재현 확인).
+-- 목록·출석부 레이아웃이 깨지고, 알림 제목에도 그대로 실린다.
+alter table public.users
+  add constraint users_display_name_max_length
+  check (char_length(display_name) <= 20);
+
+-- 저장 시점에 NFC 정규화 + 공백 정리를 강제한다.
+-- 인덱스에서만 정규화하면 저장값은 NFD로 남아 조회·표시가 어긋난다.
+create or replace function public.normalize_display_name()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.display_name := btrim(normalize(new.display_name, NFC));
+  return new;
+end;
+$$;
+
+create trigger users_normalize_display_name
+before insert or update of display_name on public.users
+for each row execute function public.normalize_display_name();
+
+-- 대소문자를 무시한 유니크. 저장값이 이미 정규화·trim 되어 있으므로 lower()만 남긴다.
+-- 'Hong'/'hong'/' hong ' 그리고 NFC/NFD 변형을 모두 같은 이름으로 취급해
 -- 눈으로 구분되지 않는 사칭을 막는다.
 create unique index users_display_name_unique
-  on public.users (lower(btrim(display_name)));
+  on public.users (lower(display_name));
 
 -- 3) 가입 트리거 — 충돌 시 자동 접미사 -----------------------------------
 -- 이메일 가입: 사용자가 닉네임을 직접 입력하므로 대개 그대로 통과한다.
@@ -74,11 +105,12 @@ begin
   v_base := left(v_base, 20);
   v_candidate := v_base;
 
-  -- 흔한 충돌은 접미사로 해소: 홍길동 → 홍길동2 → 홍길동3 ...
+  -- 흔한 충돌은 접미사로 해소: 홍길동 → 홍길동1 → 홍길동2 ...
+  -- 저장값은 normalize 트리거가 이미 NFC·trim 처리하므로 후보만 맞춰 비교한다.
   while exists (
     select 1
     from public.users u
-    where lower(btrim(u.display_name)) = lower(btrim(v_candidate))
+    where lower(u.display_name) = lower(btrim(normalize(v_candidate, NFC)))
   ) loop
     v_suffix := v_suffix + 1;
     exit when v_suffix > 99;
@@ -104,3 +136,4 @@ $$;
 
 -- create or replace는 권한을 보존하지만, 0011의 의도를 명시적으로 유지한다.
 revoke all on function public.handle_new_user() from public, anon, authenticated;
+revoke all on function public.normalize_display_name() from public, anon, authenticated;

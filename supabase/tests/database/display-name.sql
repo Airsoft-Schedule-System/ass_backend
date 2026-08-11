@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set search_path = public, extensions;
 
-select plan(11);
+select plan(15);
 
 reset role;
 
@@ -155,6 +155,47 @@ select throws_ok(
   '23514',
   null,
   'blank nickname is rejected'
+);
+
+-- 육안으로 구분되지 않는 우회 차단 ----------------------------------------
+-- 아래 두 케이스는 정규화 없이는 통과한다(로컬에서 재현 확인).
+
+select throws_ok(
+  $$update public.users
+    set display_name = normalize('김민수', NFD)
+    where id = 'd0000000-0000-0000-0000-000000000002'$$,
+  '23505',
+  null,
+  'NFD variant cannot duplicate an NFC name (invisible impersonation guard)'
+);
+
+select is(
+  (
+    select display_name = normalize(display_name, NFC)
+    from public.users
+    where id = 'd0000000-0000-0000-0000-000000000004'
+  ),
+  true,
+  'stored nicknames are NFC-normalized'
+);
+
+select throws_ok(
+  $$update public.users
+    set display_name = repeat('가', 21)
+    where id = 'd0000000-0000-0000-0000-000000000002'$$,
+  '23514',
+  null,
+  'nickname longer than 20 characters is rejected'
+);
+
+select is(
+  (
+    select display_name
+    from public.users
+    where id = 'd0000000-0000-0000-0000-000000000004'
+  ),
+  'Hong',
+  'normalize trigger trims but preserves the visible name'
 );
 
 select * from finish();
