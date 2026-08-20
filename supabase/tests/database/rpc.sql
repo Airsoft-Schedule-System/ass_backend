@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set search_path = public, extensions;
 
-select plan(45);
+select plan(52);
 
 create schema if not exists tests;
 
@@ -365,6 +365,74 @@ select is(
   (select count(*) from public.notifications where game_session_id = '41000000-0000-0000-0000-000000000015' and type = 'session.changed'),
   1::bigint,
   'update_game_session capacity change creates session.changed notification'
+);
+
+-- ── RT-04: 값이 그대로면 변경으로 치지 않는다 ──────────────
+-- 같은 값을 반복해서 보내면 알림이 계속 생겨 외부 메일 릴레이가 됐다.
+set local role authenticated;
+set local "request.jwt.claim.sub" = '00000000-0000-0000-0000-000000000001';
+set local "request.jwt.claim.role" = 'authenticated';
+
+select is(
+  public.update_game_session('41000000-0000-0000-0000-000000000015', '{"capacity":11}'::jsonb)->'updatedFields',
+  '[]'::jsonb,
+  'update_game_session은 같은 capacity 재전송을 변경으로 치지 않는다'
+);
+
+select is(
+  public.update_game_session(
+    '41000000-0000-0000-0000-000000000015',
+    jsonb_build_object('customRules', (select custom_rules from public.game_sessions where id = '41000000-0000-0000-0000-000000000015'))
+  )->'updatedFields',
+  '[]'::jsonb,
+  'update_game_session은 같은 customRules 재전송을 변경으로 치지 않는다'
+);
+
+reset role;
+
+select is(
+  (select count(*) from public.notifications where game_session_id = '41000000-0000-0000-0000-000000000015' and type = 'session.changed'),
+  1::bigint,
+  'no-op 업데이트는 알림을 추가로 만들지 않는다'
+);
+
+-- 실제로 바뀌면 여전히 알린다
+set local role authenticated;
+set local "request.jwt.claim.sub" = '00000000-0000-0000-0000-000000000001';
+set local "request.jwt.claim.role" = 'authenticated';
+
+select is(
+  public.update_game_session('41000000-0000-0000-0000-000000000015', '{"capacity":12}'::jsonb)->'updatedFields',
+  '["capacity"]'::jsonb,
+  '실제 capacity 변경은 여전히 변경으로 친다'
+);
+
+reset role;
+
+select is(
+  (select count(*) from public.notifications where game_session_id = '41000000-0000-0000-0000-000000000015' and type = 'session.changed'),
+  2::bigint,
+  '실제 변경은 알림을 만든다'
+);
+
+-- ── RT-06: auth 이메일 변경이 발송 주소에 반영된다 ──────────
+update auth.users set email = 'owner-changed@example.test'
+where id = '00000000-0000-0000-0000-000000000001';
+
+select is(
+  (select email from public.users where id = '00000000-0000-0000-0000-000000000001'),
+  'owner-changed@example.test',
+  'auth 이메일 변경이 public.users로 동기화된다'
+);
+
+-- 가드를 "auth 이메일과 일치하는 변경만 허용"으로 다시 썼으므로,
+-- 권한 있는 경로에서도 임의 값은 여전히 막혀야 한다.
+select throws_ok(
+  $$update public.users set email = 'attacker@example.test'
+    where id = '00000000-0000-0000-0000-000000000001'$$,
+  '42501',
+  'users.email must match the authenticated identity',
+  'public.users.email을 auth와 다른 값으로 바꿀 수 없다'
 );
 
 set local role authenticated;
