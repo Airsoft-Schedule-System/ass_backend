@@ -94,12 +94,13 @@ insert into public.fields (id, name, address, lat, lng) values
   ('c0000000-0000-0000-0000-000000000004', '남양주 우드랜드',     '경기 남양주시 화도읍', 37.6650, 127.3050)
 on conflict (id) do nothing;
 
+-- 공용 프리셋 — owner_id null + is_public true (0018 스키마)
 insert into public.game_rule_presets (id, name, description, rules, owner_id, is_public) values
   (
     'd0000000-0000-0000-0000-000000000001',
     '수도권 표준',
     '수도권 필드에서 통용되는 기본 규격',
-    '{"탄속": "400 FPS 이하", "탄종": "0.25g 바이오BB", "탄수": "제한 없음"}'::jsonb,
+    '{"muzzleVelocityFps": 400, "bbWeightGrams": 0.25, "bioBbRequired": true, "magazineLimit": null}'::jsonb,
     null,
     true
   ),
@@ -107,9 +108,31 @@ insert into public.game_rule_presets (id, name, description, rules, owner_id, is
     'd0000000-0000-0000-0000-000000000002',
     'CQB 실내',
     '실내 근접전 기준 — 탄속을 낮게 제한',
-    '{"탄속": "330 FPS 이하", "탄종": "0.20g 바이오BB", "탄수": "탄창 5개"}'::jsonb,
+    '{"muzzleVelocityFps": 330, "bbWeightGrams": 0.20, "bioBbRequired": true, "magazineLimit": 5}'::jsonb,
     null,
     true
+  )
+on conflict (id) do nothing;
+
+-- 개인 룰 노트 — owner_id 지정 + is_public false.
+-- 별도 테이블 없이 같은 구조를 쓴다(2026-07-16 회의: "별도 테이블로 만들기보다").
+-- 게임 생성 폼에서 불러와 noteBlocks로 이어붙이는 용도다.
+insert into public.game_rule_presets (id, name, description, rules, owner_id, is_public) values
+  (
+    'd0000000-0000-0000-0000-000000000011',
+    '기관총 운용 규칙',
+    '박스매거진·지향사격 관련 로컬룰',
+    '{"muzzleVelocityFps": 400, "noteBlocks": [{"title": "기관총 운용", "body": "박스매거진 허용. 지향사격만 가능하며 조준사격은 금지."}]}'::jsonb,
+    'a0000000-0000-0000-0000-000000000001',
+    false
+  ),
+  (
+    'd0000000-0000-0000-0000-000000000012',
+    '근거리 교전 규칙',
+    '동시전사·세이프티킬 처리',
+    '{"muzzleVelocityFps": 400, "noteBlocks": [{"title": "근거리 동시전사", "body": "5m 이내 동시 피격 시 양측 전사 처리."}, {"title": "세이프티킬", "body": "3m 이내에서는 사격 대신 구두 선언으로 전사 처리."}]}'::jsonb,
+    'a0000000-0000-0000-0000-000000000001',
+    false
   )
 on conflict (id) do nothing;
 
@@ -119,49 +142,49 @@ on conflict (id) do nothing;
 insert into public.game_sessions (
   id, title, created_by_user_id, host_team_id, field_id,
   starts_at, ends_at, capacity, confirmed_count, game_fee,
-  preset_id, cancel_deadline, status
+  preset_id, custom_rules, cancel_deadline, status
 ) values
   -- 모집 중 · 자리 여유 (승인 대기 2건 포함 — 운영 화면 확인용)
   ('e0000000-0000-0000-0000-000000000001', '주말 정기전 — 파주',
    'a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000001',
    now() + interval '7 days', now() + interval '7 days 6 hours', 20, 3, 30000,
-   'd0000000-0000-0000-0000-000000000001', now() + interval '5 days', 'recruiting'),
+   'd0000000-0000-0000-0000-000000000001', '{"muzzleVelocityFps": 400, "bbWeightGrams": 0.25, "bioBbRequired": true, "noteBlocks": [{"title": "기관총 운용", "body": "박스매거진 허용. 지향사격만 가능."}, {"title": "근거리 동시전사", "body": "5m 이내 동시 피격 시 양측 전사 처리."}]}'::jsonb, now() + interval '5 days', 'recruiting'),
 
   -- 모집 중 · 마감 임박 (1자리)
   ('e0000000-0000-0000-0000-000000000002', 'CQB 야간전 — 용인',
    'a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000002',
    now() + interval '3 days', now() + interval '3 days 4 hours', 6, 5, 25000,
-   'd0000000-0000-0000-0000-000000000002', now() + interval '1 day', 'recruiting'),
+   'd0000000-0000-0000-0000-000000000002', '{"muzzleVelocityFps": 330, "bbWeightGrams": 0.20, "bioBbRequired": true, "magazineLimit": 5}'::jsonb, now() + interval '1 day', 'recruiting'),
 
   -- 정원 마감
   ('e0000000-0000-0000-0000-000000000003', '소수 정예 미션 — 김포',
    'a0000000-0000-0000-0000-000000000001', null, 'c0000000-0000-0000-0000-000000000003',
    now() + interval '5 days', now() + interval '5 days 5 hours', 3, 3, 40000,
-   'd0000000-0000-0000-0000-000000000001', now() + interval '3 days', 'closed'),
+   'd0000000-0000-0000-0000-000000000001', '{"muzzleVelocityFps": 400, "bbWeightGrams": 0.25, "bioBbRequired": true, "magazineLimit": null}'::jsonb, now() + interval '3 days', 'closed'),
 
   -- 진행 중 (QR 스캔 화면 확인용)
   ('e0000000-0000-0000-0000-000000000004', '오늘 진행 중 — 남양주',
    'a0000000-0000-0000-0000-000000000001', null, 'c0000000-0000-0000-0000-000000000004',
    now() - interval '1 hour', now() + interval '5 hours', 10, 2, 20000,
-   'd0000000-0000-0000-0000-000000000001', now() - interval '2 days', 'inProgress'),
+   'd0000000-0000-0000-0000-000000000001', '{"muzzleVelocityFps": 400, "bbWeightGrams": 0.25, "bioBbRequired": true, "magazineLimit": null}'::jsonb, now() - interval '2 days', 'inProgress'),
 
   -- 완료 (출석 이력 확인용)
   ('e0000000-0000-0000-0000-000000000005', '지난주 정기전 — 파주',
    'a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000001',
    now() - interval '3 days', now() - interval '3 days' + interval '6 hours', 10, 2, 30000,
-   'd0000000-0000-0000-0000-000000000001', now() - interval '5 days', 'completed'),
+   'd0000000-0000-0000-0000-000000000001', '{"muzzleVelocityFps": 400, "bbWeightGrams": 0.25, "bioBbRequired": true, "magazineLimit": null}'::jsonb, now() - interval '5 days', 'completed'),
 
   -- 취소됨
   ('e0000000-0000-0000-0000-000000000006', '우천 취소된 게임 — 용인',
    'a0000000-0000-0000-0000-000000000001', null, 'c0000000-0000-0000-0000-000000000002',
    now() + interval '10 days', now() + interval '10 days 5 hours', 12, 0, 25000,
-   'd0000000-0000-0000-0000-000000000002', now() + interval '8 days', 'cancelled'),
+   'd0000000-0000-0000-0000-000000000002', '{"muzzleVelocityFps": 330, "bbWeightGrams": 0.20, "bioBbRequired": true, "magazineLimit": 5}'::jsonb, now() + interval '8 days', 'cancelled'),
 
   -- 다른 사람이 호스트 (p1 시점의 "운영" 탭 확인용)
   ('e0000000-0000-0000-0000-000000000007', '박플레이어가 여는 번개',
    'a0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-000000000002', 'c0000000-0000-0000-0000-000000000003',
    now() + interval '9 days', now() + interval '9 days 4 hours', 8, 1, 15000,
-   'd0000000-0000-0000-0000-000000000001', now() + interval '7 days', 'recruiting')
+   'd0000000-0000-0000-0000-000000000001', '{"muzzleVelocityFps": 400, "bbWeightGrams": 0.25, "bioBbRequired": true, "magazineLimit": null}'::jsonb, now() + interval '7 days', 'recruiting')
 on conflict (id) do nothing;
 
 -- ─────────────────────────────────────────────────────────

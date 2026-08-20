@@ -132,6 +132,7 @@ insert into public.game_sessions (
   confirmed_count,
   game_fee,
   preset_id,
+  custom_rules,
   cancel_deadline
 ) values
   (
@@ -146,6 +147,7 @@ insert into public.game_sessions (
     1,
     30000,
     '30000000-0000-0000-0000-000000000001',
+    '{"muzzleVelocityFps": 400}'::jsonb,
     now() + interval '5 days'
   ),
   (
@@ -160,6 +162,7 @@ insert into public.game_sessions (
     1,
     30000,
     '30000000-0000-0000-0000-000000000001',
+    '{"muzzleVelocityFps": 400}'::jsonb,
     now() + interval '6 days'
   );
 
@@ -227,6 +230,7 @@ select ok(
       confirmed_count,
       game_fee,
       preset_id,
+      custom_rules,
       cancel_deadline
     ) values (
       '40000000-0000-0000-0000-000000000099',
@@ -238,6 +242,7 @@ select ok(
       2,
       0,
       '30000000-0000-0000-0000-000000000001',
+      '{"muzzleVelocityFps": 400}'::jsonb,
       now() + interval '12 hours'
     )
   $$),
@@ -263,6 +268,7 @@ select throws_ok(
       confirmed_count,
       game_fee,
       preset_id,
+      custom_rules,
       cancel_deadline
     ) values (
       '40000000-0000-0000-0000-000000000091',
@@ -273,6 +279,7 @@ select throws_ok(
       0,
       0,
       '30000000-0000-0000-0000-000000000001',
+      '{"muzzleVelocityFps": 400}'::jsonb,
       now() + interval '12 hours'
     )
   $$,
@@ -294,6 +301,7 @@ select throws_ok(
       confirmed_count,
       game_fee,
       preset_id,
+      custom_rules,
       cancel_deadline
     ) values (
       '40000000-0000-0000-0000-000000000092',
@@ -306,6 +314,7 @@ select throws_ok(
       0,
       0,
       '30000000-0000-0000-0000-000000000001',
+      '{"muzzleVelocityFps": 400}'::jsonb,
       now() + interval '12 hours'
     )
   $$,
@@ -338,12 +347,14 @@ select throws_ok(
       now() + interval '12 hours'
     )
   $$,
-  '23514',
-  'new row for relation "game_sessions" violates check constraint "rules_xor"',
-  'rules_xor rejects both preset_id and custom_rules null'
+  '23502',
+  'null value in column "custom_rules" of relation "game_sessions" violates not-null constraint',
+  'custom_rules는 비울 수 없다 (0018: 룰은 항상 그 게임이 소유한다)'
 );
 
-select throws_ok(
+-- 0018 이전에는 preset_id와 custom_rules 중 하나만 허용했다(rules_xor).
+-- 그 제약이 "수도권 표준 프리셋 + 기관총 노트" 조합을 막고 있었다.
+select lives_ok(
   $$
     insert into public.game_sessions (
       id,
@@ -359,7 +370,7 @@ select throws_ok(
       cancel_deadline
     ) values (
       '40000000-0000-0000-0000-000000000094',
-      'Two rules',
+      'Preset plus notes',
       '00000000-0000-0000-0000-000000000001',
       '20000000-0000-0000-0000-000000000001',
       now() + interval '1 day',
@@ -367,14 +378,15 @@ select throws_ok(
       0,
       0,
       '30000000-0000-0000-0000-000000000001',
-      '{}',
+      '{"muzzleVelocityFps": 400, "noteBlocks": [{"title": "기관총 운용", "body": "박스매거진 허용"}]}'::jsonb,
       now() + interval '12 hours'
     )
   $$,
-  '23514',
-  'new row for relation "game_sessions" violates check constraint "rules_xor"',
-  'rules_xor rejects both preset_id and custom_rules set'
+  '프리셋 출처와 커스텀 룰을 함께 가질 수 있다 (0018)'
 );
+
+-- 뒤따르는 세션 개수 검증에 영향을 주지 않도록 되돌린다
+delete from public.game_sessions where id = '40000000-0000-0000-0000-000000000094';
 
 select throws_ok(
   $$
@@ -445,7 +457,7 @@ select ok(tests.try_exec($$update public.game_rule_presets set name = 'Self pres
 select ok(tests.try_exec($$delete from public.game_rule_presets where id = '30000000-0000-0000-0000-000000000099'$$), 'preset owner can delete own preset');
 select ok(not tests.try_exec($$insert into public.game_rule_presets (name, owner_id) values ('Forged preset', '00000000-0000-0000-0000-000000000003')$$), 'preset insert cannot forge owner_id');
 select ok(not tests.try_exec($$update public.game_sessions set title = 'Blocked' where id = '40000000-0000-0000-0000-000000000001'$$), 'authenticated cannot directly write game_sessions');
-select ok(not tests.try_exec($$insert into public.game_sessions (title, created_by_user_id, field_id, starts_at, capacity, confirmed_count, game_fee, preset_id, cancel_deadline) values ('Blocked direct session', '00000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000001', now() + interval '1 day', 20, 0, 0, '30000000-0000-0000-0000-000000000001', now() + interval '12 hours')$$), 'authenticated cannot directly insert game_sessions');
+select ok(not tests.try_exec($$insert into public.game_sessions (title, created_by_user_id, field_id, starts_at, capacity, confirmed_count, game_fee, preset_id, custom_rules, cancel_deadline) values ('Blocked direct session', '00000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000001', now() + interval '1 day', 20, 0, 0, '30000000-0000-0000-0000-000000000001', '{"muzzleVelocityFps": 400}'::jsonb, now() + interval '12 hours')$$), 'authenticated cannot directly insert game_sessions');
 select ok(not tests.try_exec($$delete from public.game_sessions where id = '40000000-0000-0000-0000-000000000001'$$), 'authenticated cannot directly delete game_sessions');
 select ok(not tests.try_exec($$update public.participations set status = 'cancelled' where id = '50000000-0000-0000-0000-000000000001'$$), 'self cannot directly write participations');
 select ok(not tests.try_exec($$insert into public.participations (game_session_id, user_id) values ('40000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000002')$$), 'authenticated cannot directly insert participations');
