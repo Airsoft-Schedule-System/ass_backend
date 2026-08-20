@@ -87,7 +87,17 @@ revoke execute on function public.assert_game_rules(jsonb) from public;
 grant execute on function public.assert_game_rules(jsonb) to authenticated, service_role;
 
 -- ─────────────────────────────────────────────────────────
--- 2. 기존 데이터 이관 — 프리셋만 있던 세션에 룰을 복사해 넣는다
+-- 2. XOR 제약 먼저 해제
+--
+--    ⚠️ 순서가 중요하다. 아래 백필은 preset_id가 있는 세션에 custom_rules를
+--       채우는데, rules_xor가 살아 있으면 그 자체가 제약 위반이 된다.
+--       빈 DB에서는 백필이 0행이라 db reset으로는 드러나지 않는다.
+-- ─────────────────────────────────────────────────────────
+alter table public.game_sessions
+  drop constraint if exists rules_xor;
+
+-- ─────────────────────────────────────────────────────────
+-- 3. 기존 데이터 이관 — 프리셋만 있던 세션에 룰을 복사해 넣는다
 -- ─────────────────────────────────────────────────────────
 update public.game_sessions gs
 set custom_rules = coalesce(gp.rules, '{}'::jsonb)
@@ -110,16 +120,13 @@ set rules = coalesce(rules, '{}'::jsonb) || '{"muzzleVelocityFps": 400}'::jsonb
 where jsonb_typeof(rules->'muzzleVelocityFps') is distinct from 'number';
 
 -- ─────────────────────────────────────────────────────────
--- 3. XOR 제약 해제 — 프리셋과 노트를 함께 쓸 수 있게 한다
+-- 4. 룰은 항상 그 게임이 소유한다
 -- ─────────────────────────────────────────────────────────
-alter table public.game_sessions
-  drop constraint if exists rules_xor;
-
 alter table public.game_sessions
   alter column custom_rules set not null;
 
 -- ─────────────────────────────────────────────────────────
--- 4. 게임 생성 — customRules 필수, presetId는 출처 표시
+-- 5. 게임 생성 — customRules 필수, presetId는 출처 표시
 -- ─────────────────────────────────────────────────────────
 create or replace function public.create_game_session(p_input jsonb)
 returns jsonb
@@ -246,7 +253,7 @@ end;
 $$;
 
 -- ─────────────────────────────────────────────────────────
--- 5. 게임 수정 — 프리셋에서 시작했어도 룰을 고칠 수 있다
+-- 6. 게임 수정 — 프리셋에서 시작했어도 룰을 고칠 수 있다
 --
 --    회의의 "해당 게임에서만 추가 수정" 을 반영한다.
 --    기존에는 preset_id가 있으면 customRules 변경을 막고 있었다.
