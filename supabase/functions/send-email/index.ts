@@ -22,8 +22,6 @@ const BREVO_SEND_URL = "https://api.brevo.com/v3/smtp/email";
 const EMAIL_REQUEST_TIMEOUT_MS = 3_000;
 
 const ALWAYS_EMAIL_TYPES = new Set([
-  "payment.requested",
-  "payment.decision",
   "session.upcoming_reminder",
   "session.changed",
 ]);
@@ -64,17 +62,17 @@ function parseNotification(payload: unknown): NotificationRow | null {
 
 function emailSubject(notification: NotificationRow): string | null {
   if (notification.type === "participation.decision") {
-    // approve_participation also creates payment.requested. That notification
-    // is the single canonical approval email; only rejections are sent here.
-    if (notification.data?.decision !== "rejected") {
-      return null;
-    }
-
-    return NEUTRAL_REJECTION_SUBJECT;
+    // 선입금 폐기로 payment.requested가 사라졌다. 이제 승인 자체가
+    // 앱 밖으로 나가야 할 유일한 확정 신호이므로 승인도 메일로 보낸다.
+    // 반려는 제3자가 제목만 봐도 알 수 없도록 중립 문구를 쓴다.
+    return notification.data?.decision === "rejected"
+      ? NEUTRAL_REJECTION_SUBJECT
+      : notification.title;
   }
 
   if (!ALWAYS_EMAIL_TYPES.has(notification.type)) {
-    // participation.confirmed and every unlisted type remain in-app only.
+    // participation.confirmed는 승인과 같은 순간에 발생해 위 메일과 중복이므로
+    // 인앱 전용으로 남긴다. 목록에 없는 타입도 마찬가지.
     return null;
   }
 
