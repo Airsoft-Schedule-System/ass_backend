@@ -6,8 +6,17 @@
 -- ⚠️ __SEED_PASSWORD__ 는 워크플로가 실행 직전에 치환한다.
 --    이 파일에 실제 비밀번호를 적지 말 것 (public repo).
 --
--- 성질: 고정 UUID + on conflict do nothing 이라 여러 번 실행해도 안전하다.
--- 범위: 선입금 폐기(0017) 이후 스키마 기준. 결제·환불 데이터는 존재하지 않는다.
+-- 성질: 고정 UUID라 여러 번 실행해도 안전하다. 다만 대상에 따라 갱신 여부가 다르다.
+--
+--   참조 데이터(팀·필드·프리셋·룰 노트)와 게임의 custom_rules → do update
+--     정본이므로 재실행이 "최신 정의로 맞추는" 동작이 되어야 한다.
+--     스키마가 바뀌었는데 do nothing이면 옛 데이터가 영영 남는다(실제로 겪음).
+--
+--   계정·참가·입장권·알림 → do nothing
+--     앱에서 테스트하며 만든 상태를 덮으면 안 된다.
+--     게임의 제목·상태·인원수도 같은 이유로 갱신하지 않는다.
+--
+-- 범위: 선입금 폐기(0017) · 게임룰 구조(0018) 이후 스키마 기준.
 
 begin;
 
@@ -85,14 +94,19 @@ where email like '%@ass.test' and phone_number is null;
 insert into public.teams (id, name) values
   ('b0000000-0000-0000-0000-000000000001', '서울 팬텀'),
   ('b0000000-0000-0000-0000-000000000002', '경기 레이븐')
-on conflict (id) do nothing;
+on conflict (id) do update
+  set name = excluded.name;
 
 insert into public.fields (id, name, address, lat, lng) values
   ('c0000000-0000-0000-0000-000000000001', '파주 서바이벌 필드', '경기 파주시 조리읍', 37.7583, 126.7800),
   ('c0000000-0000-0000-0000-000000000002', '용인 CQB 아레나',    '경기 용인시 처인구', 37.2411, 127.1776),
   ('c0000000-0000-0000-0000-000000000003', '김포 야외 필드',      '경기 김포시 대곶면', 37.6100, 126.5150),
   ('c0000000-0000-0000-0000-000000000004', '남양주 우드랜드',     '경기 남양주시 화도읍', 37.6650, 127.3050)
-on conflict (id) do nothing;
+on conflict (id) do update
+  set name    = excluded.name,
+      address = excluded.address,
+      lat     = excluded.lat,
+      lng     = excluded.lng;
 
 -- 공용 프리셋 — owner_id null + is_public true (0018 스키마)
 insert into public.game_rule_presets (id, name, description, rules, owner_id, is_public) values
@@ -112,7 +126,12 @@ insert into public.game_rule_presets (id, name, description, rules, owner_id, is
     null,
     true
   )
-on conflict (id) do nothing;
+on conflict (id) do update
+  set name        = excluded.name,
+      description = excluded.description,
+      rules       = excluded.rules,
+      owner_id    = excluded.owner_id,
+      is_public   = excluded.is_public;
 
 -- 개인 룰 노트 — owner_id 지정 + is_public false.
 -- 별도 테이블 없이 같은 구조를 쓴다(2026-07-16 회의: "별도 테이블로 만들기보다").
@@ -134,7 +153,12 @@ insert into public.game_rule_presets (id, name, description, rules, owner_id, is
     'a0000000-0000-0000-0000-000000000001',
     false
   )
-on conflict (id) do nothing;
+on conflict (id) do update
+  set name        = excluded.name,
+      description = excluded.description,
+      rules       = excluded.rules,
+      owner_id    = excluded.owner_id,
+      is_public   = excluded.is_public;
 
 -- ─────────────────────────────────────────────────────────
 -- 3. 게임 세션 — 상태별로 하나씩 (목록·상세 화면 검증용)
@@ -185,7 +209,11 @@ insert into public.game_sessions (
    'a0000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-000000000002', 'c0000000-0000-0000-0000-000000000003',
    now() + interval '9 days', now() + interval '9 days 4 hours', 8, 1, 15000,
    'd0000000-0000-0000-0000-000000000001', '{"muzzleVelocityFps": 400, "bbWeightGrams": 0.25, "bioBbRequired": true, "magazineLimit": null}'::jsonb, now() + interval '7 days', 'recruiting')
-on conflict (id) do nothing;
+-- 룰은 참조 성격이라 갱신하되, 제목·상태·인원수는 앱에서 테스트하며
+-- 바뀌었을 수 있으므로 덮지 않는다.
+on conflict (id) do update
+  set custom_rules = excluded.custom_rules,
+      preset_id    = excluded.preset_id;
 
 -- ─────────────────────────────────────────────────────────
 -- 4. 참가 — 상태 5종을 모두 포함
