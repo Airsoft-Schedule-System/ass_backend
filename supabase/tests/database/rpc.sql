@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set search_path = public, extensions;
 
-select plan(38);
+select plan(45);
 
 create schema if not exists tests;
 
@@ -90,29 +90,30 @@ insert into public.game_sessions (
   confirmed_count,
   game_fee,
   preset_id,
+  custom_rules,
   cancel_deadline,
   status
 ) values
-  ('41000000-0000-0000-0000-000000000001', 'Request Session', '00000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', now() + interval '7 days', now() + interval '7 days 6 hours', 10, 0, 30000, '30000000-0000-0000-0000-000000000001', now() + interval '5 days', 'recruiting'),
-  ('41000000-0000-0000-0000-000000000002', 'Other Owner Session', '00000000-0000-0000-0000-000000000004', '20000000-0000-0000-0000-000000000001', now() + interval '8 days', now() + interval '8 days 6 hours', 10, 0, 30000, '30000000-0000-0000-0000-000000000001', now() + interval '6 days', 'recruiting'),
-  ('41000000-0000-0000-0000-000000000003', 'Closed Session', '00000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', now() + interval '7 days', now() + interval '7 days 6 hours', 1, 1, 30000, '30000000-0000-0000-0000-000000000001', now() + interval '5 days', 'closed'),
-  ('41000000-0000-0000-0000-000000000004', 'In Progress Session', '00000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', now() - interval '1 hour', now() + interval '5 hours', 10, 0, 30000, '30000000-0000-0000-0000-000000000001', now() - interval '1 day', 'inProgress'),
-  ('41000000-0000-0000-0000-000000000005', 'Completed Session', '00000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', now() - interval '3 days', now() - interval '2 days', 10, 0, 30000, '30000000-0000-0000-0000-000000000001', now() - interval '4 days', 'completed'),
-  ('41000000-0000-0000-0000-000000000006', 'Capacity Session', '00000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', now() + interval '9 days', now() + interval '9 days 6 hours', 1, 0, 30000, '30000000-0000-0000-0000-000000000001', now() + interval '7 days', 'recruiting'),
-  ('41000000-0000-0000-0000-000000000007', 'Full Session', '00000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', now() + interval '9 days', now() + interval '9 days 6 hours', 1, 1, 30000, '30000000-0000-0000-0000-000000000001', now() + interval '7 days', 'closed'),
-  ('41000000-0000-0000-0000-000000000008', 'Closed Cancel Session', '00000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', now() + interval '9 days', now() + interval '9 days 6 hours', 2, 1, 30000, '30000000-0000-0000-0000-000000000001', now() + interval '7 days', 'closed'),
-  ('41000000-0000-0000-0000-000000000009', 'Refund Future Session', '00000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', now() + interval '9 days', now() + interval '9 days 6 hours', 3, 1, 30000, '30000000-0000-0000-0000-000000000001', now() + interval '7 days', 'recruiting'),
-  ('41000000-0000-0000-0000-000000000010', 'Refund Past Session', '00000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', now() + interval '2 days', now() + interval '2 days 6 hours', 3, 1, 30000, '30000000-0000-0000-0000-000000000001', now() - interval '1 hour', 'recruiting'),
-  ('41000000-0000-0000-0000-000000000011', 'Transition Full', '00000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', now() + interval '4 days', now() + interval '4 days 6 hours', 1, 1, 30000, '30000000-0000-0000-0000-000000000001', now() + interval '2 days', 'recruiting'),
-  ('41000000-0000-0000-0000-000000000012', 'Transition Past Start', '00000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', now() - interval '1 hour', now() + interval '5 hours', 10, 0, 30000, '30000000-0000-0000-0000-000000000001', now() - interval '1 day', 'recruiting'),
-  ('41000000-0000-0000-0000-000000000013', 'Transition Complete', '00000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', now() - interval '2 days', now() - interval '1 day', 10, 0, 30000, '30000000-0000-0000-0000-000000000001', now() - interval '3 days', 'inProgress'),
-  ('41000000-0000-0000-0000-000000000014', 'Reminder Session', '00000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', now() + interval '24 hours', now() + interval '30 hours', 10, 1, 30000, '30000000-0000-0000-0000-000000000001', now() + interval '12 hours', 'recruiting'),
-  ('41000000-0000-0000-0000-000000000015', 'QR Reuse Session', '00000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', now() + interval '7 days', now() + interval '7 days 6 hours', 10, 1, 30000, '30000000-0000-0000-0000-000000000001', now() + interval '5 days', 'recruiting'),
-  ('41000000-0000-0000-0000-000000000016', 'QR Expired Session', '00000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', now() - interval '2 days', now() - interval '1 day', 10, 1, 30000, '30000000-0000-0000-0000-000000000001', now() - interval '3 days', 'inProgress'),
-  ('41000000-0000-0000-0000-000000000017', 'Operator Session', '00000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', now() + interval '7 days', now() + interval '7 days 6 hours', 1, 0, 30000, '30000000-0000-0000-0000-000000000001', now() + interval '5 days', 'recruiting'),
-  ('41000000-0000-0000-0000-000000000018', 'Review Session', '00000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', now() + interval '7 days', now() + interval '7 days 6 hours', 1, 1, 30000, '30000000-0000-0000-0000-000000000001', now() + interval '5 days', 'closed'),
-  ('41000000-0000-0000-0000-000000000019', 'Operator Refund Session', '00000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', now() + interval '7 days', now() + interval '7 days 6 hours', 2, 0, 30000, '30000000-0000-0000-0000-000000000001', now() + interval '5 days', 'recruiting'),
-  ('41000000-0000-0000-0000-000000000020', 'Cancel Count Session', '00000000-0000-0000-0000-000000000004', '20000000-0000-0000-0000-000000000001', now() + interval '7 days', now() + interval '7 days 6 hours', 5, 2, 30000, '30000000-0000-0000-0000-000000000001', now() + interval '5 days', 'closed');
+  ('41000000-0000-0000-0000-000000000001', 'Request Session', '00000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', now() + interval '7 days', now() + interval '7 days 6 hours', 10, 0, 30000, '30000000-0000-0000-0000-000000000001', '{"muzzleVelocityFps": 400}'::jsonb, now() + interval '5 days', 'recruiting'),
+  ('41000000-0000-0000-0000-000000000002', 'Other Owner Session', '00000000-0000-0000-0000-000000000004', '20000000-0000-0000-0000-000000000001', now() + interval '8 days', now() + interval '8 days 6 hours', 10, 0, 30000, '30000000-0000-0000-0000-000000000001', '{"muzzleVelocityFps": 400}'::jsonb, now() + interval '6 days', 'recruiting'),
+  ('41000000-0000-0000-0000-000000000003', 'Closed Session', '00000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', now() + interval '7 days', now() + interval '7 days 6 hours', 1, 1, 30000, '30000000-0000-0000-0000-000000000001', '{"muzzleVelocityFps": 400}'::jsonb, now() + interval '5 days', 'closed'),
+  ('41000000-0000-0000-0000-000000000004', 'In Progress Session', '00000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', now() - interval '1 hour', now() + interval '5 hours', 10, 0, 30000, '30000000-0000-0000-0000-000000000001', '{"muzzleVelocityFps": 400}'::jsonb, now() - interval '1 day', 'inProgress'),
+  ('41000000-0000-0000-0000-000000000005', 'Completed Session', '00000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', now() - interval '3 days', now() - interval '2 days', 10, 0, 30000, '30000000-0000-0000-0000-000000000001', '{"muzzleVelocityFps": 400}'::jsonb, now() - interval '4 days', 'completed'),
+  ('41000000-0000-0000-0000-000000000006', 'Capacity Session', '00000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', now() + interval '9 days', now() + interval '9 days 6 hours', 1, 0, 30000, '30000000-0000-0000-0000-000000000001', '{"muzzleVelocityFps": 400}'::jsonb, now() + interval '7 days', 'recruiting'),
+  ('41000000-0000-0000-0000-000000000007', 'Full Session', '00000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', now() + interval '9 days', now() + interval '9 days 6 hours', 1, 1, 30000, '30000000-0000-0000-0000-000000000001', '{"muzzleVelocityFps": 400}'::jsonb, now() + interval '7 days', 'closed'),
+  ('41000000-0000-0000-0000-000000000008', 'Closed Cancel Session', '00000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', now() + interval '9 days', now() + interval '9 days 6 hours', 2, 1, 30000, '30000000-0000-0000-0000-000000000001', '{"muzzleVelocityFps": 400}'::jsonb, now() + interval '7 days', 'closed'),
+  ('41000000-0000-0000-0000-000000000009', 'Refund Future Session', '00000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', now() + interval '9 days', now() + interval '9 days 6 hours', 3, 1, 30000, '30000000-0000-0000-0000-000000000001', '{"muzzleVelocityFps": 400}'::jsonb, now() + interval '7 days', 'recruiting'),
+  ('41000000-0000-0000-0000-000000000010', 'Refund Past Session', '00000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', now() + interval '2 days', now() + interval '2 days 6 hours', 3, 1, 30000, '30000000-0000-0000-0000-000000000001', '{"muzzleVelocityFps": 400}'::jsonb, now() - interval '1 hour', 'recruiting'),
+  ('41000000-0000-0000-0000-000000000011', 'Transition Full', '00000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', now() + interval '4 days', now() + interval '4 days 6 hours', 1, 1, 30000, '30000000-0000-0000-0000-000000000001', '{"muzzleVelocityFps": 400}'::jsonb, now() + interval '2 days', 'recruiting'),
+  ('41000000-0000-0000-0000-000000000012', 'Transition Past Start', '00000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', now() - interval '1 hour', now() + interval '5 hours', 10, 0, 30000, '30000000-0000-0000-0000-000000000001', '{"muzzleVelocityFps": 400}'::jsonb, now() - interval '1 day', 'recruiting'),
+  ('41000000-0000-0000-0000-000000000013', 'Transition Complete', '00000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', now() - interval '2 days', now() - interval '1 day', 10, 0, 30000, '30000000-0000-0000-0000-000000000001', '{"muzzleVelocityFps": 400}'::jsonb, now() - interval '3 days', 'inProgress'),
+  ('41000000-0000-0000-0000-000000000014', 'Reminder Session', '00000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', now() + interval '24 hours', now() + interval '30 hours', 10, 1, 30000, '30000000-0000-0000-0000-000000000001', '{"muzzleVelocityFps": 400}'::jsonb, now() + interval '12 hours', 'recruiting'),
+  ('41000000-0000-0000-0000-000000000015', 'QR Reuse Session', '00000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', now() + interval '7 days', now() + interval '7 days 6 hours', 10, 1, 30000, '30000000-0000-0000-0000-000000000001', '{"muzzleVelocityFps": 400}'::jsonb, now() + interval '5 days', 'recruiting'),
+  ('41000000-0000-0000-0000-000000000016', 'QR Expired Session', '00000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', now() - interval '2 days', now() - interval '1 day', 10, 1, 30000, '30000000-0000-0000-0000-000000000001', '{"muzzleVelocityFps": 400}'::jsonb, now() - interval '3 days', 'inProgress'),
+  ('41000000-0000-0000-0000-000000000017', 'Operator Session', '00000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', now() + interval '7 days', now() + interval '7 days 6 hours', 1, 0, 30000, '30000000-0000-0000-0000-000000000001', '{"muzzleVelocityFps": 400}'::jsonb, now() + interval '5 days', 'recruiting'),
+  ('41000000-0000-0000-0000-000000000018', 'Review Session', '00000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', now() + interval '7 days', now() + interval '7 days 6 hours', 1, 1, 30000, '30000000-0000-0000-0000-000000000001', '{"muzzleVelocityFps": 400}'::jsonb, now() + interval '5 days', 'closed'),
+  ('41000000-0000-0000-0000-000000000019', 'Operator Refund Session', '00000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', now() + interval '7 days', now() + interval '7 days 6 hours', 2, 0, 30000, '30000000-0000-0000-0000-000000000001', '{"muzzleVelocityFps": 400}'::jsonb, now() + interval '5 days', 'recruiting'),
+  ('41000000-0000-0000-0000-000000000020', 'Cancel Count Session', '00000000-0000-0000-0000-000000000004', '20000000-0000-0000-0000-000000000001', now() + interval '7 days', now() + interval '7 days 6 hours', 5, 2, 30000, '30000000-0000-0000-0000-000000000001', '{"muzzleVelocityFps": 400}'::jsonb, now() + interval '5 days', 'closed');
 
 insert into public.participations (id, game_session_id, user_id, status)
 values
@@ -324,6 +325,7 @@ select is(
         'capacity', 10,
         'gameFee', 30000,
         'presetId', '30000000-0000-0000-0000-000000000001',
+        'customRules', jsonb_build_object('muzzleVelocityFps', 400),
         'cancelDeadline', (now() + interval '6 days')::text
       )
     )
@@ -342,7 +344,8 @@ select is(
         'endsAt', (now() + interval '5 days 6 hours')::text,
         'capacity', 10,
         'gameFee', 30000,
-        'presetId', '30000000-0000-0000-0000-000000000001'
+        'presetId', '30000000-0000-0000-0000-000000000001',
+        'customRules', jsonb_build_object('muzzleVelocityFps', 400)
       )
     )
   $$),
@@ -591,6 +594,107 @@ select throws_ok(
   '23505',
   'duplicate key value violates unique constraint "one_active_pass_per_participation"',
   'partial unique index rejects duplicate active entry pass'
+);
+
+-- ── 0018 게임룰 구조 ───────────────────────────────────────
+select is(
+  tests.error_hint($$
+    select public.create_game_session(
+      jsonb_build_object(
+        'title', 'No Rules Session',
+        'fieldId', '20000000-0000-0000-0000-000000000001',
+        'startsAt', (now() + interval '5 days')::text,
+        'capacity', 10,
+        'gameFee', 30000
+      )
+    )
+  $$),
+  'invalid-argument',
+  'create_game_session은 customRules 없이 거부한다'
+);
+
+select is(
+  tests.error_hint($$
+    select public.create_game_session(
+      jsonb_build_object(
+        'title', 'No Velocity Session',
+        'fieldId', '20000000-0000-0000-0000-000000000001',
+        'startsAt', (now() + interval '5 days')::text,
+        'capacity', 10,
+        'gameFee', 30000,
+        'customRules', jsonb_build_object('bbWeightGrams', 0.25)
+      )
+    )
+  $$),
+  'invalid-argument',
+  'create_game_session은 탄속 없는 룰을 거부한다'
+);
+
+select is(
+  tests.error_hint($$
+    select public.create_game_session(
+      jsonb_build_object(
+        'title', 'Bad Notes Session',
+        'fieldId', '20000000-0000-0000-0000-000000000001',
+        'startsAt', (now() + interval '5 days')::text,
+        'capacity', 10,
+        'gameFee', 30000,
+        'customRules', jsonb_build_object(
+          'muzzleVelocityFps', 400,
+          'noteBlocks', jsonb_build_array(jsonb_build_object('title', '기관총'))
+        )
+      )
+    )
+  $$),
+  'invalid-argument',
+  'create_game_session은 body 없는 노트 블록을 거부한다'
+);
+
+-- 프리셋 출처 + 이어붙인 노트 = 회의가 그리던 조합
+select is(
+  (public.create_game_session(
+    jsonb_build_object(
+      'title', 'Preset With Notes',
+      'fieldId', '20000000-0000-0000-0000-000000000001',
+      'startsAt', (now() + interval '6 days')::text,
+      'capacity', 10,
+      'gameFee', 30000,
+      'presetId', '30000000-0000-0000-0000-000000000001',
+      'customRules', jsonb_build_object(
+        'muzzleVelocityFps', 400,
+        'bioBbRequired', true,
+        'noteBlocks', jsonb_build_array(
+          jsonb_build_object('title', '기관총 운용', 'body', '박스매거진 허용'),
+          jsonb_build_object('title', '근거리 동시전사', 'body', '5m 이내 양측 전사')
+        )
+      )
+    )
+  ))->>'success',
+  'true',
+  '프리셋과 룰 노트를 함께 지정해 게임을 만들 수 있다'
+);
+
+select is(
+  (select jsonb_array_length(custom_rules->'noteBlocks')
+   from public.game_sessions where title = 'Preset With Notes'),
+  2,
+  '이어붙인 노트 블록이 그대로 저장된다'
+);
+
+select is(
+  (select preset_id::text from public.game_sessions where title = 'Preset With Notes'),
+  '30000000-0000-0000-0000-000000000001',
+  '프리셋 출처가 함께 기록된다'
+);
+
+-- 프리셋에서 시작했어도 그 게임에서만 룰을 고칠 수 있다 (회의 §4)
+select is(
+  public.update_game_session(
+    (select id from public.game_sessions where title = 'Preset With Notes'),
+    jsonb_build_object('customRules', jsonb_build_object('muzzleVelocityFps', 350))
+  )->'updatedFields',
+  '["customRules"]'::jsonb,
+  '프리셋 기반 세션도 룰을 수정할 수 있다'
 );
 
 select * from finish();
