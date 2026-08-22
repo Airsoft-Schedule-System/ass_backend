@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set search_path = public, extensions;
 
-select plan(74);
+select plan(75);
 
 create schema if not exists tests;
 
@@ -164,12 +164,30 @@ insert into public.game_sessions (
     '30000000-0000-0000-0000-000000000001',
     '{"muzzleVelocityFps": 400}'::jsonb,
     now() + interval '6 days'
+  ),
+  -- 3일 전에 끝난 게임 — 개인정보 열람 기한(종료 +24h) 검증용
+  (
+    '40000000-0000-0000-0000-000000000003',
+    'Past session',
+    '00000000-0000-0000-0000-000000000001',
+    '10000000-0000-0000-0000-000000000001',
+    '20000000-0000-0000-0000-000000000001',
+    now() - interval '3 days',
+    now() - interval '3 days' + interval '6 hours',
+    20,
+    1,
+    30000,
+    '30000000-0000-0000-0000-000000000001',
+    '{"muzzleVelocityFps": 400}'::jsonb,
+    now() - interval '5 days'
   );
 
 insert into public.participations (id, game_session_id, user_id, status)
 values
   ('50000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000002', 'confirmed'),
-  ('50000000-0000-0000-0000-000000000002', '40000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000003', 'confirmed');
+  ('50000000-0000-0000-0000-000000000002', '40000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000003', 'confirmed'),
+  -- 지난 게임의 참가자. 같은 호스트(user01)가 소유하지만 기한이 지났다.
+  ('50000000-0000-0000-0000-000000000003', '40000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000003', 'attended');
 
 insert into public.entry_passes (
   id,
@@ -438,7 +456,7 @@ select is((select count(*) from public.users where id = '00000000-0000-0000-0000
 select is((select count(*) from public.teams), 1::bigint, 'authenticated self can select teams');
 select is((select count(*) from public.fields), 1::bigint, 'authenticated self can select fields');
 select is((select count(*) from public.game_rule_presets), 1::bigint, 'self sees only public presets without ownership');
-select is((select count(*) from public.game_sessions), 2::bigint, 'authenticated self can select all sessions');
+select is((select count(*) from public.game_sessions), 3::bigint, 'authenticated self can select all sessions');
 select is((select count(*) from public.participations where id = '50000000-0000-0000-0000-000000000001'), 1::bigint, 'self can select own participation');
 select is((select count(*) from public.participations where id = '50000000-0000-0000-0000-000000000002'), 0::bigint, 'self cannot select other participation');
 select is((select count(*) from public.entry_passes where id = '80000000-0000-0000-0000-000000000001'), 1::bigint, 'self can select own entry pass');
@@ -493,6 +511,14 @@ set local "request.jwt.claim.sub" = '00000000-0000-0000-0000-000000000001';
 set local "request.jwt.claim.role" = 'authenticated';
 
 select is((select display_name from public.users where id = '00000000-0000-0000-0000-000000000002'), 'Self Updated', 'session owner can select own session applicant display_name');
+
+-- 0021: 열람 기한 — 종료 +24h 가 지난 게임의 참가자는 더 이상 보이지 않는다.
+-- user03 은 3일 전 끝난 Past session 참가자이며 그 게임의 호스트는 user01 이다.
+select is(
+  (select count(*) from public.users where id = '00000000-0000-0000-0000-000000000003'),
+  0::bigint,
+  '호스트는 종료 24시간이 지난 게임의 참가자 정보를 볼 수 없다'
+);
 select is((select count(*) from public.users where id = '00000000-0000-0000-0000-000000000003'), 0::bigint, 'session owner cannot select applicant from another session');
 select is((select count(*) from public.participations where id = '50000000-0000-0000-0000-000000000001'), 1::bigint, 'session owner can select own session participation');
 select is((select count(*) from public.participations where id = '50000000-0000-0000-0000-000000000002'), 0::bigint, 'session owner cannot select other session participation');
