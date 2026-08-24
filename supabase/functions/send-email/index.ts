@@ -17,6 +17,32 @@ interface EmailSender {
 }
 
 const LOCAL_WEBHOOK_SECRET = "local-dev-secret";
+const MAX_BODY_BYTES = 16 * 1024;
+
+// 배포 환경에서는 WEBHOOK_SECRET 미설정 시 fail-closed 한다.
+// 이 저장소는 public 이라 LOCAL_WEBHOOK_SECRET 값이 공개돼 있고
+// verify_jwt = false 라 함수가 인터넷에 열려 있다. 폴백을 그대로 두면
+// 누구나 등록 사용자에게 임의 제목·본문으로 메일을 보낼 수 있다.
+function isHostedEnvironment(): boolean {
+  const url = Deno.env.get("SUPABASE_URL") ?? "";
+  return url.includes(".supabase.co") || url.includes(".supabase.in");
+}
+
+// action_url 은 알림 행에서 오며, 폴백 시크릿이 통하는 상황에서는
+// 공격자가 정할 수 있다. 절대 URL 을 허용하면 신뢰 발신자 명의의
+// 피싱 링크가 되므로 상대 경로만 받는다.
+function toAbsoluteActionUrl(actionUrl: string): string | null {
+  if (!actionUrl.startsWith("/") || actionUrl.startsWith("//")) {
+    return null;
+  }
+
+  const base = Deno.env.get("APP_BASE_URL");
+  if (!base) {
+    return actionUrl;
+  }
+
+  return `${base.replace(/\/+$/, "")}${actionUrl}`;
+}
 const NEUTRAL_REJECTION_SUBJECT = "참가 신청 결과 안내";
 const BREVO_SEND_URL = "https://api.brevo.com/v3/smtp/email";
 const EMAIL_REQUEST_TIMEOUT_MS = 3_000;
@@ -124,7 +150,24 @@ function errorMessage(error: unknown): string {
 }
 
 Deno.serve(async (request) => {
-  const expectedSecret = Deno.env.get("WEBHOOK_SECRET") || LOCAL_WEBHOOK_SECRET;
+  if (request.method !== "POST") {
+    return jsonResponse(405, { ok: false, error: "method-not-allowed" });
+  }
+
+  const declaredLength = Number(request.headers.get("content-length") ?? "0");
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_BODY_BYTES) {
+    return jsonResponse(413, { ok: false, error: "payload-too-large" });
+  }
+
+  const configuredSecret = Deno.env.get("WEBHOOK_SECRET");
+
+  if (!configuredSecret && isHostedEnvironment()) {
+    // 로컬 폴백으로 조용히 동작하면 안 된다. 설정 누락을 드러낸다.
+    console.error("send-email refused: WEBHOOK_SECRET is not configured");
+    return jsonResponse(503, { ok: false, error: "not-configured" });
+  }
+
+  const expectedSecret = configuredSecret || LOCAL_WEBHOOK_SECRET;
   const suppliedSecret = request.headers.get("x-webhook-secret");
 
   if (suppliedSecret !== expectedSecret) {
@@ -191,8 +234,16 @@ Deno.serve(async (request) => {
       throw new Error("EMAIL_FROM is not configured");
     }
 
+    const actionUrl = toAbsoluteActionUrl(notification.action_url);
+
+    if (!actionUrl) {
+      // 상대 경로가 아닌 링크는 신뢰 발신자 명의의 외부 유도가 된다.
+      console.error(`send-email rejected a non-relative action_url: ${notification.action_url}`);
+      return success("invalid-action-url");
+    }
+
     const escapedBody = escapeHtml(notification.body).replaceAll("\n", "<br>");
-    const escapedActionUrl = escapeHtml(notification.action_url);
+    const escapedActionUrl = escapeHtml(actionUrl);
     const response = await fetch(BREVO_SEND_URL, {
       method: "POST",
       signal: AbortSignal.timeout(EMAIL_REQUEST_TIMEOUT_MS),
@@ -204,7 +255,7 @@ Deno.serve(async (request) => {
         sender: parseSender(emailFrom),
         to: [{ email: recipientEmail }],
         subject,
-        textContent: `${notification.body}\n\n앱에서 확인하기: ${notification.action_url}`,
+        textContent: `${notification.body}\n\n앱에서 확인하기: ${actionUrl}`,
         htmlContent: [
           `<p>${escapedBody}</p>`,
           `<p><a href="${escapedActionUrl}">앱에서 확인하기</a></p>`,
