@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set search_path = public, extensions;
 
-select plan(59);
+select plan(63);
 
 create schema if not exists tests;
 
@@ -824,6 +824,39 @@ select is(
   tests.error_hint($$select * from public.list_session_participants('41000000-0000-0000-0000-000000000002')$$),
   'permission-denied',
   '남의 게임 참가자 목록은 조회할 수 없다'
+);
+
+-- ── QR 서명 키 회전 (0022) ─────────────────────────────────
+reset role;
+
+select is(
+  public.qr_secret_name('v1'),
+  'qr_hmac_secret',
+  'v1은 기존 시크릿 이름을 그대로 쓴다 (이미 배포된 이름)'
+);
+
+select is(
+  public.qr_secret_name('v2'),
+  'qr_hmac_secret_v2',
+  'v2부터는 버전별 시크릿 이름을 쓴다'
+);
+
+select is(
+  public.current_qr_secret_version(),
+  'v1',
+  '설정이 없으면 발급 버전은 v1이다'
+);
+
+-- 버전이 실제로 키를 고른다는 증거.
+-- 이전에는 버전과 무관하게 qr_hmac_secret 하나만 봤으므로 이 호출도 성공했다.
+select is(
+  tests.error_hint($$
+    select public.build_entry_pass_token(
+      gen_random_uuid(), gen_random_uuid(), gen_random_uuid(), now(), 'v9'
+    )
+  $$),
+  'failed-precondition',
+  '시크릿이 없는 버전으로는 서명할 수 없다 — 버전이 키를 고른다'
 );
 
 select * from finish();
