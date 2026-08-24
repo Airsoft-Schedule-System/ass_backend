@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set search_path = public, extensions;
 
-select plan(52);
+select plan(59);
 
 create schema if not exists tests;
 
@@ -70,6 +70,9 @@ insert into auth.users (
   ('00000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'other-owner@example.test', 'test-password-hash', now(), '{"provider":"email","providers":["email"]}', '{"display_name":"Other Owner"}', now(), now()),
   ('00000000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'incomplete@example.test', 'test-password-hash', now(), '{"provider":"email","providers":["email"]}', '{"display_name":""}', now(), now());
 
+-- list_session_participants 의 번호 노출 규칙 검증용
+update public.users set phone_number = '010-1234-' || right(id::text, 4);
+
 insert into public.teams (id, name)
 values ('10000000-0000-0000-0000-000000000001', 'Alpha');
 
@@ -113,7 +116,9 @@ insert into public.game_sessions (
   ('41000000-0000-0000-0000-000000000017', 'Operator Session', '00000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', now() + interval '7 days', now() + interval '7 days 6 hours', 1, 0, 30000, '30000000-0000-0000-0000-000000000001', '{"muzzleVelocityFps": 400}'::jsonb, now() + interval '5 days', 'recruiting'),
   ('41000000-0000-0000-0000-000000000018', 'Review Session', '00000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', now() + interval '7 days', now() + interval '7 days 6 hours', 1, 1, 30000, '30000000-0000-0000-0000-000000000001', '{"muzzleVelocityFps": 400}'::jsonb, now() + interval '5 days', 'closed'),
   ('41000000-0000-0000-0000-000000000019', 'Operator Refund Session', '00000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', now() + interval '7 days', now() + interval '7 days 6 hours', 2, 0, 30000, '30000000-0000-0000-0000-000000000001', '{"muzzleVelocityFps": 400}'::jsonb, now() + interval '5 days', 'recruiting'),
-  ('41000000-0000-0000-0000-000000000020', 'Cancel Count Session', '00000000-0000-0000-0000-000000000004', '20000000-0000-0000-0000-000000000001', now() + interval '7 days', now() + interval '7 days 6 hours', 5, 2, 30000, '30000000-0000-0000-0000-000000000001', '{"muzzleVelocityFps": 400}'::jsonb, now() + interval '5 days', 'closed');
+  ('41000000-0000-0000-0000-000000000020', 'Cancel Count Session', '00000000-0000-0000-0000-000000000004', '20000000-0000-0000-0000-000000000001', now() + interval '7 days', now() + interval '7 days 6 hours', 5, 2, 30000, '30000000-0000-0000-0000-000000000001', '{"muzzleVelocityFps": 400}'::jsonb, now() + interval '5 days', 'closed'),
+  -- 3일 전에 끝난 게임 — 연락처 노출 기한(종료 +24h) 검증용
+  ('41000000-0000-0000-0000-000000000021', 'Past Contact Session', '00000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', now() - interval '4 days', now() - interval '3 days', 10, 1, 30000, '30000000-0000-0000-0000-000000000001', '{"muzzleVelocityFps": 400}'::jsonb, now() - interval '6 days', 'completed');
 
 insert into public.participations (id, game_session_id, user_id, status)
 values
@@ -130,7 +135,8 @@ values
   ('51000000-0000-0000-0000-000000000011', '41000000-0000-0000-0000-000000000018', '00000000-0000-0000-0000-000000000002', 'pendingApproval'),
   ('51000000-0000-0000-0000-000000000012', '41000000-0000-0000-0000-000000000018', '00000000-0000-0000-0000-000000000003', 'confirmed'),
   ('51000000-0000-0000-0000-000000000013', '41000000-0000-0000-0000-000000000020', '00000000-0000-0000-0000-000000000002', 'confirmed'),
-  ('51000000-0000-0000-0000-000000000014', '41000000-0000-0000-0000-000000000020', '00000000-0000-0000-0000-000000000003', 'confirmed');
+  ('51000000-0000-0000-0000-000000000014', '41000000-0000-0000-0000-000000000020', '00000000-0000-0000-0000-000000000003', 'confirmed'),
+  ('51000000-0000-0000-0000-000000000016', '41000000-0000-0000-0000-000000000021', '00000000-0000-0000-0000-000000000004', 'confirmed');
 
 insert into storage.objects (id, bucket_id, name, owner, owner_id, metadata)
 values
@@ -763,6 +769,61 @@ select is(
   )->'updatedFields',
   '["customRules"]'::jsonb,
   '프리셋 기반 세션도 룰을 수정할 수 있다'
+);
+
+-- ── list_session_participants — 호스트 조회 전용 (0021) ────
+reset role;
+set local role authenticated;
+set local "request.jwt.claim.sub" = '00000000-0000-0000-0000-000000000001';
+set local "request.jwt.claim.role" = 'authenticated';
+
+-- 세션 18: 승인 대기 1 + 확정 1, 시작은 미래
+select is(
+  (select count(*) from public.list_session_participants('41000000-0000-0000-0000-000000000018')),
+  2::bigint,
+  'list_session_participants는 상태와 무관하게 모든 참가자를 돌려준다'
+);
+
+select isnt(
+  (select display_name from public.list_session_participants('41000000-0000-0000-0000-000000000018')
+    where participation_id = '51000000-0000-0000-0000-000000000011'),
+  null,
+  '승인 대기자의 이름은 보인다'
+);
+
+select is(
+  (select phone_number from public.list_session_participants('41000000-0000-0000-0000-000000000018')
+    where participation_id = '51000000-0000-0000-0000-000000000011'),
+  null,
+  '승인 대기자의 전화번호는 가려진다'
+);
+
+select isnt(
+  (select phone_number from public.list_session_participants('41000000-0000-0000-0000-000000000018')
+    where participation_id = '51000000-0000-0000-0000-000000000012'),
+  null,
+  '확정 참가자의 전화번호는 기한 내에 보인다'
+);
+
+-- 세션 21: 3일 전에 끝남
+select isnt(
+  (select display_name from public.list_session_participants('41000000-0000-0000-0000-000000000021')
+    where participation_id = '51000000-0000-0000-0000-000000000016'),
+  null,
+  '종료 24시간이 지나도 이름은 계속 보인다'
+);
+
+select is(
+  (select phone_number from public.list_session_participants('41000000-0000-0000-0000-000000000021')
+    where participation_id = '51000000-0000-0000-0000-000000000016'),
+  null,
+  '종료 24시간이 지나면 확정 참가자의 전화번호도 가려진다'
+);
+
+select is(
+  tests.error_hint($$select * from public.list_session_participants('41000000-0000-0000-0000-000000000002')$$),
+  'permission-denied',
+  '남의 게임 참가자 목록은 조회할 수 없다'
 );
 
 select * from finish();
